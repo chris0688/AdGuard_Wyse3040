@@ -8,7 +8,7 @@ Unattended-Upgrade::Remove-Unused-Dependencies "true";
 
 // Falls ein Update einen Neustart braucht: nachts um 04:00 neu starten.
 // Achtung: DNS ist dabei ca. 1 Minute nicht erreichbar.
-// Die Uhrzeit wird mit "sudo wyse-setup" in 53wyse-reboot-time überschrieben.
+// Die Uhrzeit wird mit "sudo adguard-setup" in 53adguard-reboot-time überschrieben.
 Unattended-Upgrade::Automatic-Reboot "true";
 Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
 Unattended-Upgrade::Automatic-Reboot-Time "04:00";

@@ -56,17 +56,28 @@ if compgen -G "/sys/class/thermal/thermal_zone*/temp" >/dev/null; then
     TEMP=$(( TEMP / 1000 ))
 fi
 
-# Letzte automatische Update-Prüfung
-# Regelmäßiger Neustart (eingerichtet mit wyse-setup)
-REBOOT_PLAN="${YELLOW}nicht eingerichtet${NC} ${GRAY}(sudo wyse-setup)${NC}"
-if systemctl is-enabled --quiet wyse-reboot.timer 2>/dev/null; then
-    REBOOT_PLAN="$(systemctl show -p Description --value wyse-reboot.timer)"
+# Regelmäßiger Neustart (eingerichtet mit adguard-setup)
+REBOOT_PLAN="${YELLOW}nicht eingerichtet${NC} ${GRAY}(sudo adguard-setup)${NC}"
+if systemctl is-enabled --quiet adguard-reboot.timer 2>/dev/null; then
+    REBOOT_PLAN="$(systemctl show -p Description --value adguard-reboot.timer)"
+    REBOOT_PLAN="${REBOOT_PLAN#Neustart }"
 fi
 
-LAST_UPDATE="-"
-if [[ -f /var/lib/apt/periodic/unattended-upgrades-stamp ]]; then
-    LAST_UPDATE=$(date -r /var/lib/apt/periodic/unattended-upgrades-stamp '+%d.%m.%Y %H:%M')
+# Automatische Updates: aktiv? Wann zuletzt gelaufen?
+UU_ENABLED=0
+eval "$(apt-config shell UU_ENABLED APT::Periodic::Unattended-Upgrade 2>/dev/null)"
+UU_STAMP=/var/lib/apt/periodic/unattended-upgrades-stamp
+if [[ $UU_ENABLED != 1 ]]; then
+    AUTO_UPDATE="${RED}deaktiviert${NC}"
+elif [[ -f $UU_STAMP ]]; then
+    AUTO_UPDATE="${LIGHT_GREEN}aktiv${NC} ${GRAY}–${NC} ${CYAN}zuletzt $(date -r "$UU_STAMP" '+%d.%m.%Y %H:%M')${NC}"
+else
+    AUTO_UPDATE="${LIGHT_GREEN}aktiv${NC} ${GRAY}– noch nicht gelaufen (täglich morgens)${NC}"
 fi
+
+# Web-Konsole (Cockpit), falls installiert
+WEBCONSOLE=""
+systemctl is-enabled --quiet cockpit.socket 2>/dev/null && WEBCONSOLE="https://${IP_ADDR}:9090"
 
 # AdGuard-Status
 if systemctl is-active --quiet AdGuardHome 2>/dev/null; then
@@ -108,12 +119,14 @@ echo -e "  ${BLUE}Speicher:${NC}      $(bar "$DISK_PCT" "$DISK_COLOR") ${DISK_CO
 echo ""
 echo -e "  ${BLUE}AdGuard Home:${NC}  ${AGH_STATE} ${GRAY}${AGH_VERSION}${NC}"
 echo -e "  ${BLUE}Webinterface:${NC}  ${CYAN}${AGH_URL}${NC}"
-echo -e "  ${BLUE}Auto-Update:${NC}   ${CYAN}${LAST_UPDATE}${NC}"
-echo -e "  ${BLUE}Neustart:${NC}      ${CYAN}${REBOOT_PLAN}${NC}"
+[[ -n $WEBCONSOLE ]] && echo -e "  ${BLUE}Web-Konsole:${NC}   ${CYAN}${WEBCONSOLE}${NC}"
+echo ""
+echo -e "  ${BLUE}Auto-Update:${NC}   ${AUTO_UPDATE}"
+echo -e "  ${BLUE}Auto-Neustart:${NC} ${CYAN}${REBOOT_PLAN}${NC}"
 echo -e "$LINE"
 
-if [[ ! -f /var/lib/wyse-setup/setup.done ]]; then
-    echo -e "  ${YELLOW}Tipp:${NC} Hostname und feste IP einrichten mit:  ${WHITE}sudo wyse-setup${NC}"
+if [[ ! -f /var/lib/adguard-setup/setup.done ]]; then
+    echo -e "  ${YELLOW}Tipp:${NC} Hostname und feste IP einrichten mit:  ${WHITE}sudo adguard-setup${NC}"
     echo -e "$LINE"
 fi
 

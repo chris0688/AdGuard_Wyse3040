@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# wyse-setup.sh – Grundeinrichtung des AdGuard-Servers (Hostname, Passwort, Neustart, IP)
+# adguard-setup.sh – Grundeinrichtung des AdGuard-Servers (Hostname, Passwort, Neustart, IP)
 #
-# Auf dem Gerät installiert als:  /usr/local/sbin/wyse-setup
-# Aufruf:                         sudo wyse-setup
+# Auf dem Gerät installiert als:  /usr/local/sbin/adguard-setup
+# Aufruf:                         sudo adguard-setup
 #
 # Schritte (jeder einzeln überspringbar):
 #   1. Hostname setzen
@@ -15,7 +15,7 @@
 # den Setup-Assistenten im Webinterface (Port 3000) und nicht hier.
 set -euo pipefail
 
-STATE_DIR="/var/lib/wyse-setup"
+STATE_DIR="/var/lib/adguard-setup"
 DONE_FILE="$STATE_DIR/setup.done"
 
 NEED_REBOOT=0
@@ -104,16 +104,16 @@ step_linux_password() {
 
 # ---------------------------------------------------------------- 3. Neustart-Zeitplan
 
-REBOOT_TIMER="/etc/systemd/system/wyse-reboot.timer"
-REBOOT_SERVICE="/etc/systemd/system/wyse-reboot.service"
-APT_REBOOT_CONF="/etc/apt/apt.conf.d/53wyse-reboot-time"
+REBOOT_TIMER="/etc/systemd/system/adguard-reboot.timer"
+REBOOT_SERVICE="/etc/systemd/system/adguard-reboot.service"
+APT_REBOOT_CONF="/etc/apt/apt.conf.d/53adguard-reboot-time"
 
 step_reboot() {
     info "Automatischer Neustart"
     local time freq day day_en desc
 
-    if systemctl is-enabled --quiet wyse-reboot.timer 2>/dev/null; then
-        echo "Aktuell: $(systemctl show -p Description --value wyse-reboot.timer)"
+    if systemctl is-enabled --quiet adguard-reboot.timer 2>/dev/null; then
+        echo "Aktuell: $(systemctl show -p Description --value adguard-reboot.timer)"
     else
         echo "Aktuell: kein regelmäßiger Neustart eingerichtet."
     fi
@@ -128,11 +128,11 @@ step_reboot() {
         [[ $time =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] && break
         warn "Bitte im Format HH:MM angeben, z.B. 04:00."
     done
-    printf '// erzeugt von wyse-setup\nUnattended-Upgrade::Automatic-Reboot-Time "%s";\n' "$time" > "$APT_REBOOT_CONF"
+    printf '// erzeugt von adguard-setup\nUnattended-Upgrade::Automatic-Reboot-Time "%s";\n' "$time" > "$APT_REBOOT_CONF"
 
     if ! yesno "Regelmäßigen Neustart einrichten? (empfohlen)" j; then
         if [[ -f $REBOOT_TIMER ]]; then
-            systemctl disable --now wyse-reboot.timer 2>/dev/null || true
+            systemctl disable --now adguard-reboot.timer 2>/dev/null || true
             rm -f "$REBOOT_TIMER" "$REBOOT_SERVICE"
             systemctl daemon-reload
         fi
@@ -164,7 +164,7 @@ step_reboot() {
     fi
 
     cat > "$REBOOT_SERVICE" <<EOF
-# erzeugt von wyse-setup
+# erzeugt von adguard-setup
 [Unit]
 Description=Regelmäßiger Neustart
 
@@ -173,7 +173,7 @@ Type=oneshot
 ExecStart=/usr/bin/systemctl reboot
 EOF
     cat > "$REBOOT_TIMER" <<EOF
-# erzeugt von wyse-setup – ändern mit: sudo wyse-setup
+# erzeugt von adguard-setup – ändern mit: sudo adguard-setup
 [Unit]
 Description=Neustart $desc
 
@@ -186,7 +186,7 @@ Persistent=false
 WantedBy=timers.target
 EOF
     systemctl daemon-reload
-    systemctl enable --now wyse-reboot.timer
+    systemctl enable --now adguard-reboot.timer
     echo "Eingerichtet: Neustart $desc."
 }
 
@@ -201,8 +201,7 @@ step_cockpit() {
         return 0
     fi
     echo "Cockpit ist eine Weboberfläche für die Linux-Verwaltung: Terminal im"
-    echo "Browser, Updates, Logs, Dienste, Neustart. Belegt nur Arbeitsspeicher,"
-    echo "solange jemand angemeldet ist. Adresse danach: https://$ip:9090"
+    echo "Browser, Updates, Logs, Dienste, Neustart. Adresse danach: https://$ip:9090"
     yesno "Cockpit installieren?" n || return 0
 
     # --no-install-recommends: sonst würde u.a. NetworkManager mitinstalliert und
@@ -212,6 +211,8 @@ step_cockpit() {
         cockpit-ws cockpit-system cockpit-bridge cockpit-packagekit
     ufw allow 9090/tcp >/dev/null
     systemctl enable --now cockpit.socket
+    # Web-Konsole in den Login-Banner aufnehmen
+    /usr/local/sbin/adguard-banner || true
     echo "Cockpit installiert: https://$ip:9090  (Login mit dem Linux-Benutzer)"
     warn "Der Browser warnt beim ersten Aufruf vor dem selbst signierten Zertifikat – das ist normal."
 }
@@ -245,7 +246,7 @@ write_resolv_conf() {   # write_resolv_conf dns1 [dns2]
         return
     fi
     {
-        echo "# erzeugt von wyse-setup"
+        echo "# erzeugt von adguard-setup"
         for d in "$@"; do [[ -n $d ]] && echo "nameserver $d"; done
     } > /etc/resolv.conf
 }
@@ -302,7 +303,7 @@ step_network() {
         ifupdown)
             cp -a /etc/network/interfaces "/etc/network/interfaces.bak.$(date +%Y%m%d%H%M%S)"
             {
-                echo "# erzeugt von wyse-setup – Backup: /etc/network/interfaces.bak.*"
+                echo "# erzeugt von adguard-setup – Backup: /etc/network/interfaces.bak.*"
                 echo "source /etc/network/interfaces.d/*"
                 echo
                 echo "auto lo"
@@ -322,7 +323,7 @@ step_network() {
         networkd)
             local f="/etc/systemd/network/10-$iface.network"
             {
-                echo "# erzeugt von wyse-setup"
+                echo "# erzeugt von adguard-setup"
                 echo "[Match]"
                 echo "Name=$iface"
                 echo

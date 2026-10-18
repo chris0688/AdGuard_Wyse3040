@@ -1,18 +1,18 @@
 # Führt beim ersten Start nach der USB-Installation bootstrap.sh aus
 # (Pakete, AdGuard Home, Konfiguration). Läuft nur, solange
-# /var/lib/wyse-setup/bootstrap.done nicht existiert.
+# /var/lib/adguard-setup/bootstrap.done nicht existiert.
 #
-# Fortschritt verfolgen:  journalctl -fu adguard-wyse-firstboot
+# Fortschritt verfolgen:  journalctl -fu adguard-firstboot
 
 [Unit]
 Description=AdGuard Wyse 3040 – Ersteinrichtung
 Wants=network-online.target
 After=network-online.target
-ConditionPathExists=!/var/lib/wyse-setup/bootstrap.done
+ConditionPathExists=!/var/lib/adguard-setup/bootstrap.done
 
 [Service]
 Type=oneshot
-ExecStart=/opt/adguard-wyse/scripts/bootstrap.sh
+ExecStart=/opt/adguard-setup/scripts/bootstrap.sh
 # Kein Netz / Download-Fehler: nach 30 s erneut versuchen
 Restart=on-failure
 RestartSec=30

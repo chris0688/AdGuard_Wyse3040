@@ -6,7 +6,7 @@
 #  * spielt die Konfiguration aus rootfs/ ein (scripts/install.sh)
 #
 # Läuft automatisch beim ersten Start nach der USB-Installation
-# (adguard-wyse-firstboot.service) oder manuell nach einer eigenen
+# (adguard-firstboot.service) oder manuell nach einer eigenen
 # Debian-Installation:
 #   sudo ./scripts/bootstrap.sh
 #
@@ -14,8 +14,8 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-STATE_DIR="/var/lib/wyse-setup"
-STATUS_ISSUE="/etc/issue.d/50-wyse-status.issue"
+STATE_DIR="/var/lib/adguard-setup"
+STATUS_ISSUE="/etc/issue.d/50-adguard-status.issue"
 
 AGH_DIR="/opt/AdGuardHome"
 AGH_URL_BASE="https://static.adtidy.org/adguardhome/release"
@@ -41,7 +41,7 @@ status() {   # status "farbe" "text"
 }
 
 on_error() {
-    status lightred "Einrichtung FEHLGESCHLAGEN - Details: journalctl -u adguard-wyse-firstboot"
+    status lightred "Einrichtung FEHLGESCHLAGEN - Details: journalctl -u adguard-firstboot"
 }
 trap on_error ERR
 

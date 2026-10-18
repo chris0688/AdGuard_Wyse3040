@@ -1,0 +1,13 @@
+# Aktualisiert den Login-Banner sofort, wenn
+#  - ein Passwort geändert wurde (Warnung zum Standardpasswort verschwindet)
+#  - AdGuard eingerichtet wurde (Hinweis auf den Einrichtungsassistenten verschwindet)
+[Unit]
+Description=Login-Banner bei Änderungen aktualisieren
+
+[Path]
+PathChanged=/etc/shadow
+PathChanged=/opt/AdGuardHome/AdGuardHome.yaml
+Unit=adguard-banner.service
+
+[Install]
+WantedBy=multi-user.target

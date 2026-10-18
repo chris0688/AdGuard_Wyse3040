@@ -42,8 +42,9 @@ chmod 755 /etc/update-motd.d/*
 : > /etc/motd
 [[ -f /etc/update-motd.d/10-uname ]] && chmod -x /etc/update-motd.d/10-uname
 
-echo "==> Installiere wyse-setup nach /usr/local/sbin ..."
-install -m 755 "$REPO_DIR/scripts/wyse-setup.sh" /usr/local/sbin/wyse-setup
+echo "==> Installiere adguard-setup und adguard-banner nach /usr/local/sbin ..."
+install -m 755 "$REPO_DIR/scripts/adguard-setup.sh"  /usr/local/sbin/adguard-setup
+install -m 755 "$REPO_DIR/scripts/adguard-banner.sh" /usr/local/sbin/adguard-banner
 
 echo "==> Firewall (ufw) ..."
 for rule in "${UFW_RULES[@]}"; do
@@ -53,6 +54,9 @@ ufw --force enable
 
 echo "==> Dienste neu laden ..."
 systemctl daemon-reexec          # system.conf.d (Watchdog) übernehmen
+systemctl enable adguard-banner.service
+systemctl enable --now adguard-banner.path
+/usr/local/sbin/adguard-banner
 systemctl restart systemd-journald
 systemctl enable --now fail2ban
 systemctl restart fail2ban

@@ -1,0 +1,10 @@
+[Unit]
+Description=Login-Banner aktualisieren (AdGuard-Server)
+Before=getty.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/adguard-banner
+
+[Install]
+WantedBy=multi-user.target

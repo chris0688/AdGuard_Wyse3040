@@ -22,7 +22,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 - [Repository-Aufbau](#repository-aufbau)
 - [USB-Stick (ISO) bauen](#usb-stick-iso-bauen)
 - [Alternative: Debian selbst installieren](#alternative-debian-selbst-installieren)
-- [Grundeinrichtung: `wyse-setup`](#grundeinrichtung-wyse-setup)
+- [Grundeinrichtung: `adguard-setup`](#grundeinrichtung-adguard-setup)
 - [Konfiguration ändern](#konfiguration-ändern)
 - [Wartung & Troubleshooting](#wartung--troubleshooting)
 - [Tipps für den Betrieb](#tipps-für-den-betrieb)
@@ -59,7 +59,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
    - Ein **neues Passwort** muss gesetzt werden (siehe [Sicherheit](#sicherheit)).
    - Die **Grundeinrichtung** startet: Hostname, **regelmäßiger Neustart**,
      optional die Web-Verwaltung Cockpit, **DHCP oder feste IP**
-     (siehe [`wyse-setup`](#grundeinrichtung-wyse-setup)).
+     (siehe [`adguard-setup`](#grundeinrichtung-adguard-setup)).
 7. Im Browser **`http://<IP>:3000`** öffnen und den AdGuard-Einrichtungsassistenten
    durchklicken (Admin-Benutzer mit **sicherem Passwort** anlegen, Webinterface auf
    Port 80, DNS auf Port 53).
@@ -70,11 +70,13 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 > [!IMPORTANT]
 > Das Standardpasswort `AdGuardRootPW1` steht öffentlich in dieser Anleitung.
 > **Es muss aus Sicherheitsgründen unbedingt geändert werden.** Das System
-> erzwingt das beim ersten Login.
+> erzwingt das beim ersten Login. Bis dahin zeigt der Login-Bildschirm eine
+> rote Warnung, denn AdGuard lässt sich auch ohne Linux-Login im Browser
+> einrichten, und man könnte das Passwort sonst vergessen.
 
 - Der Benutzer `adguard` ist der Administrator (über `sudo`). Ein direkter
   **root-Login ist deaktiviert**, es gibt also kein separates root-Passwort.
-- Passwort später ändern: `passwd` (eigenes) oder `sudo wyse-setup`.
+- Passwort später ändern: `passwd` (eigenes) oder `sudo adguard-setup`.
 - Für den **AdGuard-Admin** im Webinterface ebenfalls ein eigenes, sicheres
   Passwort wählen. Es ist unabhängig vom Linux-Passwort.
 - **Niemals** im Router Ports (53, 80, 443, 22, 9090) aus dem Internet auf den
@@ -88,19 +90,19 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 | Basis | Debian 13 „Trixie“ minimal, ohne Desktop, mit SSH-Server. Benutzer `adguard` mit sudo-Rechten, kein root-Login. | `installer/preseed.cfg` |
 | Partitionierung | erste interne Platte (eMMC, NVMe oder SATA; USB wird übersprungen): EFI + eine ext4-Partition (`noatime`), **keine Swap-Partition** | `installer/preseed.cfg` |
 | AdGuard Home | aktuelle Version nach `/opt/AdGuardHome`, systemd-Dienst `AdGuardHome` | `scripts/bootstrap.sh` |
-| Login-Banner (vor Login) | farbiges Banner mit Hostname, IP und Web-Adressen; zeigt während der Ersteinrichtung den Fortschritt | `rootfs/etc/issue` |
-| Begrüßung (nach Login) | AdGuard-Logo, Gerät, Systemstatus mit RAM-/Speicher-Balken, Temperatur, AdGuard-Status, letztes Auto-Update, Neustart-Plan | `rootfs/etc/update-motd.d/99-custom-motd` |
-| Logs begrenzen | systemd-Journal max. 200 MB / 1 Monat, Älteres wird automatisch gelöscht | `rootfs/etc/systemd/journald.conf.d/wyse.conf` |
+| Login-Banner (vor Login) | farbiges Banner mit Hostname, IP, AdGuard-Adresse, ggf. Einrichtungsassistent und Web-Konsole; **rote Warnung, solange das Standardpasswort aktiv ist**; zeigt während der Ersteinrichtung den Fortschritt | `scripts/adguard-banner.sh`, `rootfs/etc/systemd/system/adguard-banner.*` |
+| Begrüßung (nach Login) | AdGuard-Logo, Gerät, Systemstatus mit RAM-/Speicher-Balken, Temperatur, AdGuard-Status, Web-Konsole, Auto-Update (aktiv + letzter Lauf), Auto-Neustart | `rootfs/etc/update-motd.d/99-custom-motd` |
+| Logs begrenzen | systemd-Journal max. 200 MB / 1 Monat, Älteres wird automatisch gelöscht | `rootfs/etc/systemd/journald.conf.d/adguard.conf` |
 | Automatische Updates | `unattended-upgrades` (Debian + Security), entfernt alte Kernel, **Neustart zur eingestellten Uhrzeit** (Standard 04:00) falls nötig | `rootfs/etc/apt/apt.conf.d/20auto-upgrades`, `52unattended-upgrades-local` |
-| Regelmäßiger Neustart | täglich oder wöchentlich zur gleichen Uhrzeit (empfohlen), wird in `wyse-setup` abgefragt | `scripts/wyse-setup.sh` |
+| Regelmäßiger Neustart | täglich oder wöchentlich zur gleichen Uhrzeit (empfohlen), wird in `adguard-setup` abgefragt | `scripts/adguard-setup.sh` |
 | Watchdog | startet das Gerät automatisch neu, falls sich das System komplett aufhängt (sofern ein Watchdog-Chip vorhanden ist, beim Wyse 3040 ja) | `rootfs/etc/systemd/system.conf.d/watchdog.conf` |
 | Paket-Cache | wird alle 7 Tage aufgeräumt | `rootfs/etc/apt/apt.conf.d/70autoclean` |
 | Firewall (ufw) | offen: 22/tcp (SSH), 53 (DNS), 80/tcp, 443, 3000/tcp (Setup-Assistent) | `scripts/install.sh` |
 | fail2ban | SSH: 5 Fehlversuche in 10 Min. → 15 Min. Sperre, Wiederholungstäter länger (bis 1 Woche) | `rootfs/etc/fail2ban/jail.local` |
 | zram-Swap | komprimierter Swap im RAM (50 %), schont die eMMC | `rootfs/etc/default/zramswap` |
-| Power-Taste | kurzer Druck fährt sauber herunter | `rootfs/etc/systemd/logind.conf.d/wyse.conf` |
+| Power-Taste | kurzer Druck fährt sauber herunter | `rootfs/etc/systemd/logind.conf.d/adguard.conf` |
 | Wyse-Fix (**nur Wyse 3040**) | DMA-Treiber `dw_dmac` gesperrt: Ohne den Fix hängt der Wyse 3040 beim Herunterfahren/Neustarten und schaltet sich nicht aus. Wird nur eingespielt, wenn das Gerät erkannt wird. | `hardware/wyse3040/etc/modprobe.d/wyse-fix.conf` |
-| Grundeinrichtung | Hostname, Neustart-Plan, optional Cockpit, DHCP/feste IP; startet automatisch beim ersten Login | `scripts/wyse-setup.sh` → `sudo wyse-setup`, `rootfs/etc/profile.d/wyse-setup.sh` |
+| Grundeinrichtung | Hostname, Neustart-Plan, optional Cockpit, DHCP/feste IP; startet automatisch beim ersten Login | `scripts/adguard-setup.sh` → `sudo adguard-setup`, `rootfs/etc/profile.d/adguard-setup.sh` |
 
 Unter `rootfs/` liegen nur **eigene Dateien bzw. Drop-ins** (`*.conf.d/`,
 `*-local`), nie komplette Kopien von Paketdateien. So bleiben Debian-Updates
@@ -114,19 +116,19 @@ konfliktfrei, und es ist sofort sichtbar, was angepasst wurde.
  ├─ Debian-Installer liest installer/preseed.cfg
  │    → Sprache, Netzwerk (DHCP), Benutzer, interne Platte partitionieren,
  │      Minimalsystem
- │    → late_command: Repo nach /opt/adguard-wyse kopieren,
+ │    → late_command: Repo nach /opt/adguard-setup kopieren,
  │                    Wyse-Fix aktivieren (nur Wyse 3040),
  │                    Ersteinrichtungs-Dienst einschalten
  │    → Gerät schaltet sich aus
  │
  └─ Erster Start von der internen Platte
-      adguard-wyse-firstboot.service → scripts/bootstrap.sh
+      adguard-firstboot.service → scripts/bootstrap.sh
         → Pakete installieren (ufw, fail2ban, unattended-upgrades, zram,
           Microcode passend zu Intel/AMD …)
         → AdGuard Home herunterladen und als Dienst einrichten
         → scripts/install.sh: rootfs/ einspielen, Gerät erkennen und
           ggf. hardware/<gerät>/ einspielen, Firewall, Dienste
-        → /var/lib/wyse-setup/bootstrap.done (Dienst läuft danach nie wieder)
+        → /var/lib/adguard-setup/bootstrap.done (Dienst läuft danach nie wieder)
 ```
 
 Schlägt etwas fehl (z.B. kein Internet), versucht der Dienst es alle 30 Sekunden
@@ -141,14 +143,15 @@ erneut; die Login-Anzeige zeigt dann einen Hinweis.
 │   ├── build-iso.sh                     # baut den USB-Stick (ISO)
 │   ├── preseed.cfg                      # Antworten für den Debian-Installer
 │   ├── grub.cfg                         # Bootmenü des Sticks
-│   └── adguard-wyse-firstboot.service   # startet bootstrap.sh beim 1. Boot
+│   └── adguard-firstboot.service        # startet bootstrap.sh beim 1. Boot
 ├── scripts/
 │   ├── bootstrap.sh                     # Pakete + AdGuard + install.sh
 │   ├── install.sh                       # spielt rootfs/ ein (auch einzeln nutzbar)
 │   ├── hardware.sh                      # Geräteerkennung
-│   └── wyse-setup.sh                    # Hostname / Passwort / Neustart / Cockpit / IP
+│   ├── adguard-setup.sh                 # Hostname / Passwort / Neustart / Cockpit / IP
+│   └── adguard-banner.sh                # erzeugt den Login-Banner (/etc/issue)
 ├── rootfs/                              # Dateien 1:1 wie auf dem System (alle Geräte)
-│   └── etc/ ...                         #   rootfs/etc/issue → /etc/issue
+│   └── etc/ ...                         #   z.B. rootfs/etc/fail2ban/jail.local
 └── hardware/                            # nur für erkannte Geräte
     └── wyse3040/etc/ ...                #   Wyse-Fix
 ```
@@ -210,13 +213,13 @@ Raspberry Pi):
    sudo ./scripts/bootstrap.sh
    ```
 
-## Grundeinrichtung: `wyse-setup`
+## Grundeinrichtung: `adguard-setup`
 
 Startet **automatisch beim ersten Login** und erinnert bei jedem weiteren Login,
 bis es einmal durchgelaufen ist. Jederzeit erneut aufrufbar mit:
 
 ```bash
-sudo wyse-setup
+sudo adguard-setup
 ```
 
 Jeder Schritt lässt sich überspringen:
@@ -241,7 +244,7 @@ Hinweise zum Netzwerk:
 
 ### Web-Verwaltung (Cockpit)
 
-Optional über `wyse-setup` installierbar. [Cockpit](https://cockpit-project.org)
+Optional über `adguard-setup` installierbar. [Cockpit](https://cockpit-project.org)
 ist eine Weboberfläche für das Linux-System unter **`https://<IP>:9090`**
 (Login mit dem Linux-Benutzer `adguard`):
 
@@ -249,8 +252,8 @@ ist eine Weboberfläche für das Linux-System unter **`https://<IP>:9090`**
 - Updates anzeigen und installieren
 - Logs, Dienste, CPU/RAM-Verlauf, Neustart/Herunterfahren
 
-Cockpit startet nur bei Bedarf und belegt keinen Arbeitsspeicher, solange niemand
-angemeldet ist. Die Browser-Warnung zum Zertifikat beim ersten Aufruf ist normal
+Die Adresse steht nach der Installation auch im Login-Banner und in der
+Begrüßung. Die Browser-Warnung zum Zertifikat beim ersten Aufruf ist normal
 (selbst signiert).
 
 ## Konfiguration ändern
@@ -289,7 +292,7 @@ sudo find /etc -type f -newermt '2026-03-01 14:30' ! -newermt '2026-03-01 18:00'
 
 | Aufgabe | Befehl |
 |---------|--------|
-| Ersteinrichtung verfolgen | `journalctl -fu adguard-wyse-firstboot` |
+| Ersteinrichtung verfolgen | `journalctl -fu adguard-firstboot` |
 | Status AdGuard | `systemctl status AdGuardHome` |
 | AdGuard neu starten | `sudo systemctl restart AdGuardHome` |
 | AdGuard-Update | Webinterface oder `sudo /opt/AdGuardHome/AdGuardHome --update` |
@@ -300,11 +303,11 @@ sudo find /etc -type f -newermt '2026-03-01 14:30' ! -newermt '2026-03-01 18:00'
 | Journal-Größe | `journalctl --disk-usage` |
 | Letzte Auto-Updates | `less /var/log/unattended-upgrades/unattended-upgrades.log` |
 | Port 53 belegt? | `sudo ss -tulpn \| grep ':53'` |
-| Neustart-Plan anzeigen / ändern | `systemctl list-timers wyse-reboot.timer` · `sudo wyse-setup` |
+| Neustart-Plan anzeigen / ändern | `systemctl list-timers adguard-reboot.timer` · `sudo adguard-setup` |
 | Watchdog aktiv? | `sudo wdctl` |
 
 Hinweis zum nächtlichen Neustart: Währenddessen (ca. 1 Minute) ist DNS im Netz
-nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo wyse-setup` ändern.
+nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo adguard-setup` ändern.
 
 ## Tipps für den Betrieb
 

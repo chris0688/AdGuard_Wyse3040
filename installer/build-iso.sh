@@ -5,7 +5,7 @@
 # fügt hinzu:
 #   /preseed.cfg       Antworten für den Installer
 #   /boot/grub/grub.cfg  eigenes Bootmenü
-#   /adguard-wyse/     dieses Repo (rootfs/, scripts/, installer/)
+#   /adguard-setup/     dieses Repo (rootfs/, scripts/, installer/)
 #
 # Benötigt: Linux, WSL oder Docker mit  xorriso curl  (Debian: apt install xorriso curl)
 # Aufruf im Repo-Ordner:  ./installer/build-iso.sh
@@ -40,11 +40,11 @@ echo "    $ISO_NAME (Prüfsumme OK)"
 echo "==> Stelle Repo-Dateien zusammen ..."
 STAGE="$BUILD_DIR/stage"
 rm -rf "$STAGE"
-mkdir -p "$STAGE/adguard-wyse"
-cp -r "$REPO_DIR/rootfs" "$REPO_DIR/hardware" "$REPO_DIR/scripts" "$REPO_DIR/installer" "$STAGE/adguard-wyse/"
+mkdir -p "$STAGE/adguard-setup"
+cp -r "$REPO_DIR/rootfs" "$REPO_DIR/hardware" "$REPO_DIR/scripts" "$REPO_DIR/installer" "$STAGE/adguard-setup/"
 # Falls unter Windows ausgecheckt: Zeilenenden sicherheitshalber auf LF
 find "$STAGE" -type f -exec sed -i 's/\r$//' {} +
-chmod 755 "$STAGE"/adguard-wyse/scripts/*.sh "$STAGE"/adguard-wyse/rootfs/etc/update-motd.d/*
+chmod 755 "$STAGE"/adguard-setup/scripts/*.sh "$STAGE"/adguard-setup/rootfs/etc/update-motd.d/*
 
 OUT_ISO="$BUILD_DIR/adguard-wyse3040-debian-$DEBIAN_VERSION.iso"
 rm -f "$OUT_ISO"
@@ -52,7 +52,7 @@ rm -f "$OUT_ISO"
 echo "==> Baue $(basename "$OUT_ISO") ..."
 # -boot_image any replay übernimmt die Bootfähigkeit (UEFI + BIOS) der Original-ISO
 xorriso -indev "$ISO_NAME" -outdev "$OUT_ISO" \
-    -map "$STAGE/adguard-wyse"           /adguard-wyse \
+    -map "$STAGE/adguard-setup"           /adguard-setup \
     -map "$REPO_DIR/installer/preseed.cfg" /preseed.cfg \
     -map "$REPO_DIR/installer/grub.cfg"    /boot/grub/grub.cfg \
     -boot_image any replay
