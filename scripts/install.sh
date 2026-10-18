@@ -62,6 +62,7 @@ systemctl enable --now fail2ban
 systemctl restart fail2ban
 systemctl enable --now zramswap 2>/dev/null || true
 timedatectl set-ntp true         # Uhrzeit automatisch per NTP (systemd-timesyncd)
+systemctl restart systemd-timesyncd
 systemctl restart zramswap 2>/dev/null || true
 
 # Geänderte Modul-Sperren (modprobe.d) greifen erst mit neuer initramfs

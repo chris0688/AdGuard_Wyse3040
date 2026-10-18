@@ -97,7 +97,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 | Regelmäßiger Neustart | täglich oder wöchentlich zur gleichen Uhrzeit (empfohlen), wird in `adguard-setup` abgefragt | `scripts/adguard-setup.sh` |
 | Watchdog | startet das Gerät automatisch neu, falls sich das System komplett aufhängt (sofern ein Watchdog-Chip vorhanden ist, beim Wyse 3040 ja) | `rootfs/etc/systemd/system.conf.d/watchdog.conf` |
 | Paket-Cache | wird alle 7 Tage aufgeräumt | `rootfs/etc/apt/apt.conf.d/70autoclean` |
-| Uhrzeit | automatisch per NTP aus dem Internet (`systemd-timesyncd`); die Begrüßung warnt, falls nicht synchronisiert | `scripts/bootstrap.sh` |
+| Uhrzeit | automatisch per NTP von `de.pool.ntp.org` (Rückfall: Debian-Pool); die Begrüßung warnt, falls nicht synchronisiert | `rootfs/etc/systemd/timesyncd.conf.d/adguard.conf` |
 | Firewall (ufw) | offen: 22/tcp (SSH), 53 (DNS), 80/tcp, 443, 3000/tcp (Setup-Assistent) | `scripts/install.sh` |
 | fail2ban | SSH: 5 Fehlversuche in 10 Min. → 15 Min. Sperre, Wiederholungstäter länger (bis 1 Woche) | `rootfs/etc/fail2ban/jail.local` |
 | zram-Swap | komprimierter Swap im RAM (50 %), schont die eMMC | `rootfs/etc/default/zramswap` |
