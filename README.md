@@ -70,9 +70,9 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 > [!IMPORTANT]
 > Das Standardpasswort `AdGuardRootPW1` steht öffentlich in dieser Anleitung.
 > **Es muss aus Sicherheitsgründen unbedingt geändert werden.** Das System
-> erzwingt das beim ersten Login. Bis dahin zeigt der Login-Bildschirm eine
-> rote Warnung, denn AdGuard lässt sich auch ohne Linux-Login im Browser
-> einrichten, und man könnte das Passwort sonst vergessen.
+> erzwingt das beim ersten Login. Bis dahin zeigt der Login-Bildschirm am Gerät
+> eine rote Warnung mit den Zugangsdaten, denn AdGuard lässt sich auch ohne
+> Linux-Login im Browser einrichten, und man könnte das Passwort sonst vergessen.
 
 - Der Benutzer `adguard` ist der Administrator (über `sudo`). Ein direkter
   **root-Login ist deaktiviert**, es gibt also kein separates root-Passwort.

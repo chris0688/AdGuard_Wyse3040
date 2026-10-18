@@ -10,6 +10,10 @@
 set -euo pipefail
 
 AGH_CONF="/opt/AdGuardHome/AdGuardHome.yaml"
+
+# Standardpasswort aus installer/preseed.cfg (steht ohnehin öffentlich im README).
+# Wird nur angezeigt, solange es noch aktiv ist, und nur an der lokalen Konsole.
+DEFAULT_PASSWORD="AdGuardRootPW1"
 LINE='\e{lightgreen}  =================================================================\e{reset}'
 
 # Benutzer (UID >= 1000), die ihr Passwort beim nächsten Login ändern müssen.
@@ -40,8 +44,9 @@ systemctl is-enabled --quiet cockpit.socket 2>/dev/null && cockpit=1
     if [[ -n $pending_users ]]; then
         echo
         echo '\e{lightred}\e{bold}    !! SICHERHEIT: Das Standardpasswort ist noch aktiv !!\e{reset}'
-        echo "\\e{lightred}    Bitte jetzt anmelden (Benutzer: $pending_users) und ein neues Passwort setzen.\\e{reset}"
-        echo '\e{lightred}    Bis dahin ist das Gerät per SSH mit dem öffentlich bekannten Passwort erreichbar.\e{reset}'
+        echo "\\e{lightred}    Jetzt anmelden und ein neues Passwort setzen:\\e{reset}"
+        echo "\\e{lightred}      Benutzer: \\e{bold}$pending_users\\e{reset}\\e{lightred}   Passwort: \\e{bold}$DEFAULT_PASSWORD\\e{reset}"
+        echo '\e{lightred}    Bis dahin ist das Gerät per SSH mit diesem öffentlich bekannten Passwort erreichbar.\e{reset}'
     fi
     echo
 } > /etc/issue
