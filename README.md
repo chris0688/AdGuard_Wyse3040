@@ -327,13 +327,34 @@ nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo adguard-setup` änd
   sich selbst als DNS-Server. Dann fragen Geräte am AdGuard vorbei. Abhilfe: im
   Router auch für IPv6 den Wyse als DNS eintragen oder die IPv6-DNS-Verteilung
   abschalten. Prüfen: Im AdGuard-Dashboard sollten alle Geräte auftauchen.
-- **Backup der AdGuard-Einstellungen:** Alle Einstellungen (Filter, Clients,
-  Regeln) stecken in einer Datei. Gelegentlich sichern:
-  ```powershell
-  scp adguard@<IP>:/opt/AdGuardHome/AdGuardHome.yaml .
+- **Regelmäßig ein Backup der AdGuard-Einstellungen machen**, vor allem nach
+  größeren Änderungen. Das Webinterface hat dafür keine Funktion, aber alle
+  Einstellungen (Filter, eigene Regeln, Clients, Admin-Zugang) stecken in einer
+  einzigen Datei: `/opt/AdGuardHome/AdGuardHome.yaml`.
+
+  **Sichern:**
+  1. Auf dem Gerät (SSH oder Cockpit-Terminal) die Datei ins Home-Verzeichnis kopieren,
+     da sie nur für root lesbar ist:
+     ```bash
+     sudo cp /opt/AdGuardHome/AdGuardHome.yaml ~/AdGuardHome-$(date +%F).yaml
+     sudo chown $USER ~/AdGuardHome-*.yaml
+     ```
+  2. Auf den PC holen: mit [WinSCP](https://winscp.net) (grafisch, Anmeldung wie
+     bei SSH) oder in PowerShell:
+     ```powershell
+     scp "adguard@<IP>:AdGuardHome-*.yaml" .
+     ```
+
+  **Wiederherstellen** (z.B. nach einer Neuinstallation): Den AdGuard-
+  Einrichtungsassistenten **nicht** durchklicken, sondern die Datei aufs Gerät
+  kopieren und dort:
+  ```bash
+  sudo systemctl stop AdGuardHome
+  sudo cp ~/AdGuardHome-<datum>.yaml /opt/AdGuardHome/AdGuardHome.yaml
+  sudo systemctl start AdGuardHome
   ```
-  Bei einem Defekt einfach neu installieren, den Einrichtungsassistenten
-  überspringen und die Datei zurückkopieren (AdGuard vorher stoppen).
+
+  Die Datei enthält den (verschlüsselten) Admin-Zugang, also sicher aufbewahren.
 - **Port 3000** wird nach dem Einrichtungsassistenten nicht mehr gebraucht:
   `sudo ufw delete allow 3000/tcp`.
 
