@@ -1,0 +1,5 @@
+# Komprimierter Swap im RAM (zram) statt Swap-Partition:
+# gibt bei nur 2 GB RAM Luft, ohne die eMMC durch Swap-Schreibzugriffe abzunutzen.
+ALGO=zstd
+PERCENT=50
+PRIORITY=100

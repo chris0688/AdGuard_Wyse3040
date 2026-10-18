@@ -1,0 +1,24 @@
+# fail2ban – Schutz gegen Passwort-Raten per SSH.
+# Nur Abweichungen vom Standard (jail.conf bleibt unverändert).
+#
+# Status prüfen:   sudo fail2ban-client status sshd
+# IP entsperren:   sudo fail2ban-client set sshd unbanip <IP>
+
+[DEFAULT]
+# Debian 13 schreibt keine /var/log/auth.log mehr, Logs stehen im systemd-Journal
+backend = systemd
+banaction = nftables-multiport
+banaction_allports = nftables-allports
+
+# 5 Fehlversuche in 10 Minuten -> 15 Minuten Sperre.
+# Wiederholungstäter werden jedes Mal länger gesperrt (max. 1 Woche).
+maxretry = 5
+findtime = 10m
+bantime  = 15m
+bantime.increment = true
+bantime.maxtime   = 1w
+
+ignoreip = 127.0.0.1/8 ::1
+
+[sshd]
+enabled = true

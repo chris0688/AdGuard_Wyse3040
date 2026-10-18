@@ -1,0 +1,113 @@
+#!/bin/bash
+# Begrüßung nach dem Login: AdGuard-Logo + Systemstatus
+
+# Farbdefinitionen (ANSI - AdGuard Theme)
+LIGHT_GREEN='\033[1;32m'
+DARK_GREEN='\033[0;32m'
+BLUE='\033[1;34m'
+CYAN='\033[1;36m'
+WHITE='\033[1;37m'
+GRAY='\033[0;90m'
+YELLOW='\033[1;33m'
+RED='\033[1;31m'
+NC='\033[0m'
+
+LINE="${LIGHT_GREEN}=====================================================================${NC}"
+
+# Farbe nach Auslastung: grün / gelb ab $2 / rot ab $3
+level_color() {
+    if   (( $1 >= $3 )); then echo "$RED"
+    elif (( $1 >= $2 )); then echo "$YELLOW"
+    else                      echo "$LIGHT_GREEN"
+    fi
+}
+
+# Balken mit 20 Zeichen, z.B. [██████░░░░░░░░░░░░░░]
+bar() {
+    local pct=$1 color=$2 width=20 filled
+    filled=$(( pct * width / 100 ))
+    printf '%b[' "$GRAY"
+    printf '%b' "$color"; printf '%*s' "$filled" '' | sed 's/ /█/g'
+    printf '%b' "$GRAY";  printf '%*s' "$(( width - filled ))" '' | sed 's/ /░/g'
+    printf ']%b' "$NC"
+}
+
+# ------------------------------------------------------------ Systemdaten
+HOSTNAME=$(hostname)
+OS=$(. /etc/os-release && echo "$PRETTY_NAME")
+KERNEL=$(uname -r)
+UPTIME=$(uptime -p | sed 's/^up //; s/weeks\?/Wo./; s/days\?/Tg./; s/hours\?/Std./; s/minutes\?/Min./')
+IP_ADDR=$(hostname -I | awk '{print $1}')
+CPU_LOAD=$(awk '{print $1", "$2", "$3}' /proc/loadavg)
+
+RAM_TOTAL_MB=$(awk '/^MemTotal:/     {printf "%d", $2/1024}' /proc/meminfo)
+RAM_AVAIL_MB=$(awk '/^MemAvailable:/ {printf "%d", $2/1024}' /proc/meminfo)
+RAM_USED_MB=$(( RAM_TOTAL_MB - RAM_AVAIL_MB ))
+RAM_PCT=$(( RAM_USED_MB * 100 / RAM_TOTAL_MB ))
+RAM_TEXT=$(awk -v u="$RAM_USED_MB" -v t="$RAM_TOTAL_MB" 'BEGIN {printf "%.1f / %.1f GB", u/1024, t/1024}')
+
+read -r DISK_TOTAL DISK_USED DISK_PCT < <(df -h --output=size,used,pcent / | awk 'NR==2 {gsub("%","",$3); print $1, $2, $3}')
+
+# CPU-Temperatur (höchster Wert aller Thermalzonen)
+TEMP=""
+if compgen -G "/sys/class/thermal/thermal_zone*/temp" >/dev/null; then
+    TEMP=$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | sort -n | tail -1)
+    TEMP=$(( TEMP / 1000 ))
+fi
+
+# Letzte automatische Update-Prüfung
+LAST_UPDATE="-"
+if [[ -f /var/lib/apt/periodic/unattended-upgrades-stamp ]]; then
+    LAST_UPDATE=$(date -r /var/lib/apt/periodic/unattended-upgrades-stamp '+%d.%m.%Y %H:%M')
+fi
+
+# AdGuard-Status
+if systemctl is-active --quiet AdGuardHome 2>/dev/null; then
+    AGH_STATE="${LIGHT_GREEN}● läuft${NC}"
+else
+    AGH_STATE="${RED}● gestoppt${NC}"
+fi
+AGH_VERSION=$(/opt/AdGuardHome/AdGuardHome --version 2>/dev/null | grep -oE 'v[0-9][0-9.]*' | head -1)
+if [[ -f /opt/AdGuardHome/AdGuardHome.yaml ]]; then
+    AGH_URL="http://${IP_ADDR}"
+else
+    AGH_URL="http://${IP_ADDR}:3000  ${YELLOW}(Ersteinrichtung offen)${NC}"
+fi
+
+RAM_COLOR=$(level_color "$RAM_PCT" 65 85)
+DISK_COLOR=$(level_color "$DISK_PCT" 75 90)
+
+# ------------------------------------------------------------ Ausgabe
+echo -e "${LIGHT_GREEN}    ___       ________                     __   __  __                   "
+echo -e "${LIGHT_GREEN}   /   | ____/ / ______  ______ __________/ /  / / / ____  ____ ___  ___ "
+echo -e "${DARK_GREEN}  / /| |/ __  / / __/ / / / __ \`/ ___/ __  /  / /_/ / __ \\/ __ \`__ \\/ _ \\"
+echo -e "${DARK_GREEN} / ___ / /_/ / /_/ / /_/ / /_/ / /  / /_/ /  / __  / /_/ / / / / / /  __/"
+echo -e "${LIGHT_GREEN}/_/  |_\\__,_/\\____/\\__,_/\\__,_/_/   \\__,_/  /_/ /_/\\____/_/ /_/ /_/\\___/${NC}"
+echo ""
+echo -e "$LINE"
+# Wochentag fest auf Deutsch (MOTD läuft nicht zwingend mit deutscher Locale)
+WEEKDAYS=(Sonntag Montag Dienstag Mittwoch Donnerstag Freitag Samstag)
+echo -e " ${WHITE}SYSTEMSTATUS${NC} ${GRAY}– ${WEEKDAYS[$(date +%w)]}, $(date '+%d.%m.%Y %H:%M')${NC}"
+echo -e "$LINE"
+echo -e "  ${BLUE}Hostname:${NC}      ${CYAN}$HOSTNAME${NC}"
+echo -e "  ${BLUE}System:${NC}        ${CYAN}$OS${NC} ${GRAY}(Kernel $KERNEL)${NC}"
+echo -e "  ${BLUE}Laufzeit:${NC}      ${CYAN}$UPTIME${NC}"
+echo -e "  ${BLUE}IPv4-Adresse:${NC}  ${CYAN}$IP_ADDR${NC}"
+echo ""
+echo -e "  ${BLUE}CPU-Last:${NC}      ${CYAN}$CPU_LOAD${NC}${TEMP:+   ${GRAY}Temperatur:${NC} ${CYAN}${TEMP} °C${NC}}"
+echo -e "  ${BLUE}RAM:${NC}           $(bar "$RAM_PCT" "$RAM_COLOR") ${RAM_COLOR}${RAM_PCT}%${NC}  ${GRAY}${RAM_TEXT}${NC}"
+echo -e "  ${BLUE}Speicher:${NC}      $(bar "$DISK_PCT" "$DISK_COLOR") ${DISK_COLOR}${DISK_PCT}%${NC}  ${GRAY}${DISK_USED} / ${DISK_TOTAL}${NC}"
+echo ""
+echo -e "  ${BLUE}AdGuard Home:${NC}  ${AGH_STATE} ${GRAY}${AGH_VERSION}${NC}"
+echo -e "  ${BLUE}Webinterface:${NC}  ${CYAN}${AGH_URL}${NC}"
+echo -e "  ${BLUE}Auto-Update:${NC}   ${CYAN}${LAST_UPDATE}${NC}"
+echo -e "$LINE"
+
+if [[ ! -f /var/lib/wyse-setup/setup.done ]]; then
+    echo -e "  ${YELLOW}Tipp:${NC} Hostname und feste IP einrichten mit:  ${WHITE}sudo wyse-setup${NC}"
+    echo -e "$LINE"
+fi
+
+echo -e "  ${YELLOW}HINWEIS:${NC} ${WHITE}Änderungen am System nur vornehmen, wenn Sie dazu${NC}"
+echo -e "  ${WHITE}berechtigt sind und das nötige Fachwissen besitzen.${NC}"
+echo -e "$LINE"

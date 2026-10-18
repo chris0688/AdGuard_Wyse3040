@@ -1,0 +1,13 @@
+// Ergänzungen zu 50unattended-upgrades (Paketdatei bleibt unverändert).
+// Welche Quellen aktualisiert werden (Debian + Debian-Security), legt die
+// Standardkonfiguration fest.
+
+// Alte Kernel und nicht mehr benötigte Pakete entfernen (spart Platz auf der eMMC)
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+
+// Falls ein Update einen Neustart braucht: nachts um 04:00 neu starten.
+// Achtung: DNS ist dabei ca. 1 Minute nicht erreichbar.
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
+Unattended-Upgrade::Automatic-Reboot-Time "04:00";

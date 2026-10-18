@@ -1,0 +1,58 @@
+# Baut die Installations-ISO.
+#  - Tag "v*" pushen (z.B. v1.0)  -> ISO wird als GitHub-Release veröffentlicht
+#  - "Run workflow" im Actions-Tab -> ISO nur als Download-Artefakt (Test-Build)
+name: ISO bauen
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Werkzeuge installieren
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xorriso curl
+
+      - name: ISO bauen
+        run: |
+          ./installer/build-iso.sh
+          cd build
+          ISO="$(ls adguard-wyse3040-*.iso)"
+          sha256sum "$ISO" > "$ISO.sha256"
+          echo "ISO=$ISO" >> "$GITHUB_ENV"
+          echo "DEBIAN_ISO=$(awk '/amd64-netinst\.iso$/ {print $2; exit}' SHA256SUMS)" >> "$GITHUB_ENV"
+
+      - name: Test-Build als Artefakt hochladen
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ISO }}
+          path: build/${{ env.ISO }}*
+          retention-days: 7
+
+      - name: Release veröffentlichen
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/${{ env.ISO }}
+            build/${{ env.ISO }}.sha256
+          body: |
+            Installations-ISO für AdGuard Home auf dem Dell Wyse 3040.
+            Anleitung: siehe [README](https://github.com/${{ github.repository }}#schnellstart).
+
+            **Achtung:** Der Eintrag „automatisch installieren“ löscht die interne eMMC ohne Rückfrage.
+
+            ---
+            Basiert auf der unveränderten offiziellen Debian-Netinstall-ISO `${{ env.DEBIAN_ISO }}`
+            (Debian ist freie Software). Quellcode der enthaltenen Debian-Pakete:
+            https://cdimage.debian.org/cdimage/release/ · https://snapshot.debian.org/
+            AdGuard Home ist **nicht** enthalten. Es wird bei der Installation von den offiziellen
+            AdGuard-Servern geladen.

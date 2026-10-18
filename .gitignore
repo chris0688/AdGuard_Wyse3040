@@ -1,0 +1,11 @@
+# Gebaute ISOs und Downloads (build-iso.sh)
+build/
+*.iso
+*.img
+*.img.gz
+*.img.xz
+
+# Laufzeitdaten / Geheimnisse von AdGuard Home niemals einchecken
+AdGuardHome.yaml
+data/
+*.bak
