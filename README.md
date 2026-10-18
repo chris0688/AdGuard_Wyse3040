@@ -98,7 +98,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 | Watchdog | startet das Gerät automatisch neu, falls sich das System komplett aufhängt (sofern ein Watchdog-Chip vorhanden ist, beim Wyse 3040 ja) | `rootfs/etc/systemd/system.conf.d/watchdog.conf` |
 | Paket-Cache | wird alle 7 Tage aufgeräumt | `rootfs/etc/apt/apt.conf.d/70autoclean` |
 | Uhrzeit | automatisch per NTP von `de.pool.ntp.org` (Rückfall: Debian-Pool); die Begrüßung warnt, falls nicht synchronisiert | `rootfs/etc/systemd/timesyncd.conf.d/adguard.conf` |
-| AdGuard-Backup | täglich 03:30 bei Änderungen, letzte 7 Versionen; Verwaltung und Wiederherstellung mit `sudo adguard-backup` | `scripts/adguard-backup.sh`, `rootfs/etc/systemd/system/adguard-backup.*` |
+| AdGuard-Backup | täglich 03:30 bei Änderungen, letzte 7 Versionen; Verwaltung, Wiederherstellung und USB-Stick mit `sudo adguard-backup` | `scripts/adguard-backup.sh`, `rootfs/etc/systemd/system/adguard-backup.*` |
 | Firewall (ufw) | offen: 22/tcp (SSH), 53 (DNS), 80/tcp, 443, 3000/tcp (Setup-Assistent) | `scripts/install.sh` |
 | fail2ban | SSH: 5 Fehlversuche in 10 Min. → 15 Min. Sperre, Wiederholungstäter länger (bis 1 Woche) | `rootfs/etc/fail2ban/jail.local` |
 | zram-Swap | komprimierter Swap im RAM (50 %), schont die eMMC | `rootfs/etc/default/zramswap` |
@@ -337,28 +337,30 @@ nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo adguard-setup` änd
   ```bash
   sudo adguard-backup
   ```
-  Das zeigt alle Versionen und bietet an: **jetzt sichern**, **Version
-  wiederherstellen** (der aktuelle Stand wird vorher gesichert; startet AdGuard
-  mit der alten Version nicht, wird automatisch zurückgerollt) und **Version
-  zum Download bereitlegen**.
+  Das zeigt alle Versionen und bietet an:
+  - **jetzt sichern**
+  - **Version wiederherstellen**: Der aktuelle Stand wird vorher gesichert;
+    startet AdGuard mit der alten Version nicht, wird automatisch zurückgerollt.
+  - **auf USB-Stick kopieren**: eine Version oder alle, in den Ordner
+    `AdGuard-Backup/` auf dem Stick
+  - **von USB-Stick wiederherstellen**
+  - **Version zum Download bereitlegen** (für WinSCP/`scp`)
 
-  **Zusätzlich ab und zu eine Kopie auf den PC holen.** Die Sicherungen liegen
-  auf demselben Gerät und helfen nicht, wenn die eMMC kaputtgeht. In
-  `adguard-backup` „Version zum Download bereitlegen“ wählen, dann die Datei mit
-  [WinSCP](https://winscp.net) (grafisch, Anmeldung wie bei SSH) oder in
-  PowerShell holen:
+  USB-Sticks mit FAT32, exFAT, NTFS oder ext4 werden erkannt. Bei mehreren
+  Sticks wird gefragt; danach wird der Stick ausgehängt und kann abgezogen werden.
+
+  **Zusätzlich ab und zu eine Kopie außerhalb des Geräts aufbewahren.** Die
+  automatischen Sicherungen liegen auf derselben eMMC und helfen nicht, wenn sie
+  kaputtgeht. Am einfachsten: USB-Stick einstecken, `sudo adguard-backup` →
+  **(u)** → **(a)** für alle. Alternativ per „Download bereitlegen“ und
+  [WinSCP](https://winscp.net) (grafisch, Anmeldung wie bei SSH) oder PowerShell:
   ```powershell
   scp "adguard@<IP>:AdGuardHome-*.yaml" .
   ```
 
   **Nach einer Neuinstallation wiederherstellen:** Den AdGuard-
-  Einrichtungsassistenten **nicht** durchklicken, sondern die Datei aufs Gerät
-  kopieren (WinSCP/`scp` ins Home-Verzeichnis) und dort:
-  ```bash
-  sudo systemctl stop AdGuardHome
-  sudo install -m 600 ~/AdGuardHome-<datum>.yaml /opt/AdGuardHome/AdGuardHome.yaml
-  sudo systemctl start AdGuardHome
-  ```
+  Einrichtungsassistenten **nicht** durchklicken, sondern USB-Stick mit der
+  Sicherung einstecken und `sudo adguard-backup` → **(v)** wählen.
 
   Die Datei enthält den (verschlüsselten) Admin-Zugang, also sicher aufbewahren.
 - **Port 3000** wird nach dem Einrichtungsassistenten nicht mehr gebraucht:
