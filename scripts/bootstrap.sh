@@ -22,6 +22,7 @@ AGH_URL_BASE="https://static.adtidy.org/adguardhome/release"
 
 PACKAGES=(
     sudo curl ca-certificates
+    systemd-timesyncd
     ufw
     fail2ban python3-systemd
     unattended-upgrades apt-listchanges

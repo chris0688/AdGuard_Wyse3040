@@ -92,6 +92,9 @@ else
     AGH_URL="http://${IP_ADDR}:3000  ${YELLOW}(Ersteinrichtung offen)${NC}"
 fi
 
+# Uhrzeit per NTP synchronisiert? (falsche Uhrzeit lässt HTTPS/DoH scheitern)
+TIME_SYNC=$(timedatectl show -p NTPSynchronized --value 2>/dev/null)
+
 RAM_COLOR=$(level_color "$RAM_PCT" 65 85)
 DISK_COLOR=$(level_color "$DISK_PCT" 75 90)
 
@@ -106,6 +109,9 @@ echo -e "$LINE"
 # Wochentag fest auf Deutsch (MOTD läuft nicht zwingend mit deutscher Locale)
 WEEKDAYS=(Sonntag Montag Dienstag Mittwoch Donnerstag Freitag Samstag)
 echo -e " ${WHITE}SYSTEMSTATUS${NC} ${GRAY}– ${WEEKDAYS[$(date +%w)]}, $(date '+%d.%m.%Y %H:%M')${NC}"
+if [[ $TIME_SYNC != yes ]]; then
+    echo -e " ${RED}Uhrzeit nicht synchronisiert!${NC} ${GRAY}Prüfen mit: timedatectl${NC}"
+fi
 echo -e "$LINE"
 echo -e "  ${BLUE}Hostname:${NC}      ${CYAN}$HOSTNAME${NC}"
 [[ -n $MODEL ]] && echo -e "  ${BLUE}Gerät:${NC}         ${CYAN}$MODEL${NC}"

@@ -97,6 +97,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 | Regelmäßiger Neustart | täglich oder wöchentlich zur gleichen Uhrzeit (empfohlen), wird in `adguard-setup` abgefragt | `scripts/adguard-setup.sh` |
 | Watchdog | startet das Gerät automatisch neu, falls sich das System komplett aufhängt (sofern ein Watchdog-Chip vorhanden ist, beim Wyse 3040 ja) | `rootfs/etc/systemd/system.conf.d/watchdog.conf` |
 | Paket-Cache | wird alle 7 Tage aufgeräumt | `rootfs/etc/apt/apt.conf.d/70autoclean` |
+| Uhrzeit | automatisch per NTP aus dem Internet (`systemd-timesyncd`); die Begrüßung warnt, falls nicht synchronisiert | `scripts/bootstrap.sh` |
 | Firewall (ufw) | offen: 22/tcp (SSH), 53 (DNS), 80/tcp, 443, 3000/tcp (Setup-Assistent) | `scripts/install.sh` |
 | fail2ban | SSH: 5 Fehlversuche in 10 Min. → 15 Min. Sperre, Wiederholungstäter länger (bis 1 Woche) | `rootfs/etc/fail2ban/jail.local` |
 | zram-Swap | komprimierter Swap im RAM (50 %), schont die eMMC | `rootfs/etc/default/zramswap` |
@@ -303,6 +304,7 @@ sudo find /etc -type f -newermt '2026-03-01 14:30' ! -newermt '2026-03-01 18:00'
 | Journal-Größe | `journalctl --disk-usage` |
 | Letzte Auto-Updates | `less /var/log/unattended-upgrades/unattended-upgrades.log` |
 | Port 53 belegt? | `sudo ss -tulpn \| grep ':53'` |
+| Uhrzeit / Zeitsync prüfen | `timedatectl` (erwartet: „System clock synchronized: yes“) |
 | Neustart-Plan anzeigen / ändern | `systemctl list-timers adguard-reboot.timer` · `sudo adguard-setup` |
 | Watchdog aktiv? | `sudo wdctl` |
 
