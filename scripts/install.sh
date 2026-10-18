@@ -25,6 +25,17 @@ fi
 echo "==> Kopiere rootfs/ nach / ..."
 tar -C "$REPO_DIR/rootfs" -cf - . | tar -C / --no-same-owner -xvf -
 
+# Gerätespezifische Anpassungen (hardware/<gerät>/), nur wenn das Gerät erkannt wird
+# shellcheck source=hardware.sh
+source "$REPO_DIR/scripts/hardware.sh"
+HW="$(detect_hardware)"
+if [[ -n $HW && -d $REPO_DIR/hardware/$HW ]]; then
+    echo "==> Gerät erkannt: $HW – spiele hardware/$HW/ ein ..."
+    tar -C "$REPO_DIR/hardware/$HW" -cf - . | tar -C / --no-same-owner -xvf -
+else
+    echo "==> Kein spezielles Gerät erkannt – keine Hardware-Anpassungen nötig."
+fi
+
 echo "==> Login-Nachrichten ..."
 chmod 755 /etc/update-motd.d/*
 # Debian-Standardtexte ausblenden (Lizenzhinweis + uname-Zeile), eigene MOTD reicht
@@ -41,6 +52,7 @@ done
 ufw --force enable
 
 echo "==> Dienste neu laden ..."
+systemctl daemon-reexec          # system.conf.d (Watchdog) übernehmen
 systemctl restart systemd-journald
 systemctl enable --now fail2ban
 systemctl restart fail2ban

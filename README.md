@@ -8,6 +8,9 @@ Die Installation läuft **vollautomatisch von einem USB-Stick**: Stick einstecke
 Eintrag im Bootmenü wählen, warten. Danach wird AdGuard bequem im Browser
 eingerichtet. Linux-Kenntnisse sind dafür nicht nötig.
 
+Gebaut für den Wyse 3040, funktioniert aber auch auf
+[anderer Hardware](#andere-hardware) (praktisch jeder 64-Bit-PC mit UEFI).
+
 ---
 
 ## Inhalt
@@ -24,6 +27,7 @@ eingerichtet. Linux-Kenntnisse sind dafür nicht nötig.
 - [Wartung & Troubleshooting](#wartung--troubleshooting)
 - [Tipps für den Betrieb](#tipps-für-den-betrieb)
 - [Hardware & BIOS](#hardware--bios)
+- [Andere Hardware](#andere-hardware)
 - [Lizenz & Rechtliches](#lizenz--rechtliches)
 
 ---
@@ -43,8 +47,8 @@ eingerichtet. Linux-Kenntnisse sind dafür nicht nötig.
    **F12** drücken → USB-Stick auswählen. Bei Ventoy im Menü die ISO wählen,
    dann *Boot in normal mode*.
 3. **Im Bootmenü** den Eintrag
-   `AdGuard Wyse 3040 - automatisch installieren` auswählen.
-   ⚠️ **Die interne eMMC wird dabei ohne weitere Rückfrage gelöscht.**
+   `AdGuard Home - automatisch installieren` auswählen.
+   ⚠️ **Die interne eMMC/Festplatte wird dabei ohne weitere Rückfrage gelöscht.**
 4. **Warten** (ca. 15–30 Minuten). Am Ende **schaltet sich der Wyse von selbst aus**.
 5. **USB-Stick abziehen** und den Wyse wieder einschalten. Beim ersten Start
    werden AdGuard Home und alle Einstellungen installiert (ca. 5 Minuten). Der
@@ -53,8 +57,9 @@ eingerichtet. Linux-Kenntnisse sind dafür nicht nötig.
    Bildschirm). Benutzer `adguard`, Passwort `AdGuardRootPW1`. Danach geht es
    automatisch weiter:
    - Ein **neues Passwort** muss gesetzt werden (siehe [Sicherheit](#sicherheit)).
-   - Die **Grundeinrichtung** startet: Hostname, **DHCP oder feste IP**, optional
-     die Web-Verwaltung Cockpit (siehe [`wyse-setup`](#grundeinrichtung-wyse-setup)).
+   - Die **Grundeinrichtung** startet: Hostname, **regelmäßiger Neustart**,
+     optional die Web-Verwaltung Cockpit, **DHCP oder feste IP**
+     (siehe [`wyse-setup`](#grundeinrichtung-wyse-setup)).
 7. Im Browser **`http://<IP>:3000`** öffnen und den AdGuard-Einrichtungsassistenten
    durchklicken (Admin-Benutzer mit **sicherem Passwort** anlegen, Webinterface auf
    Port 80, DNS auf Port 53).
@@ -81,19 +86,21 @@ eingerichtet. Linux-Kenntnisse sind dafür nicht nötig.
 | Bereich | Beschreibung | Datei(en) |
 |---------|--------------|-----------|
 | Basis | Debian 13 „Trixie“ minimal, ohne Desktop, mit SSH-Server. Benutzer `adguard` mit sudo-Rechten, kein root-Login. | `installer/preseed.cfg` |
-| Partitionierung | EFI + eine ext4-Partition (`noatime`), **keine Swap-Partition** | `installer/preseed.cfg` |
+| Partitionierung | erste interne Platte (eMMC, NVMe oder SATA; USB wird übersprungen): EFI + eine ext4-Partition (`noatime`), **keine Swap-Partition** | `installer/preseed.cfg` |
 | AdGuard Home | aktuelle Version nach `/opt/AdGuardHome`, systemd-Dienst `AdGuardHome` | `scripts/bootstrap.sh` |
 | Login-Banner (vor Login) | farbiges Banner mit Hostname, IP und Web-Adressen; zeigt während der Ersteinrichtung den Fortschritt | `rootfs/etc/issue` |
-| Begrüßung (nach Login) | AdGuard-Logo, Systemstatus mit RAM-/Speicher-Balken, Temperatur, AdGuard-Status, letztes Auto-Update | `rootfs/etc/update-motd.d/99-custom-motd` |
+| Begrüßung (nach Login) | AdGuard-Logo, Gerät, Systemstatus mit RAM-/Speicher-Balken, Temperatur, AdGuard-Status, letztes Auto-Update, Neustart-Plan | `rootfs/etc/update-motd.d/99-custom-motd` |
 | Logs begrenzen | systemd-Journal max. 200 MB / 1 Monat, Älteres wird automatisch gelöscht | `rootfs/etc/systemd/journald.conf.d/wyse.conf` |
-| Automatische Updates | `unattended-upgrades` (Debian + Security), entfernt alte Kernel, **Neustart um 04:00** falls nötig | `rootfs/etc/apt/apt.conf.d/20auto-upgrades`, `52unattended-upgrades-local` |
+| Automatische Updates | `unattended-upgrades` (Debian + Security), entfernt alte Kernel, **Neustart zur eingestellten Uhrzeit** (Standard 04:00) falls nötig | `rootfs/etc/apt/apt.conf.d/20auto-upgrades`, `52unattended-upgrades-local` |
+| Regelmäßiger Neustart | täglich oder wöchentlich zur gleichen Uhrzeit (empfohlen), wird in `wyse-setup` abgefragt | `scripts/wyse-setup.sh` |
+| Watchdog | startet das Gerät automatisch neu, falls sich das System komplett aufhängt (sofern ein Watchdog-Chip vorhanden ist, beim Wyse 3040 ja) | `rootfs/etc/systemd/system.conf.d/watchdog.conf` |
 | Paket-Cache | wird alle 7 Tage aufgeräumt | `rootfs/etc/apt/apt.conf.d/70autoclean` |
 | Firewall (ufw) | offen: 22/tcp (SSH), 53 (DNS), 80/tcp, 443, 3000/tcp (Setup-Assistent) | `scripts/install.sh` |
 | fail2ban | SSH: 5 Fehlversuche in 10 Min. → 15 Min. Sperre, Wiederholungstäter länger (bis 1 Woche) | `rootfs/etc/fail2ban/jail.local` |
 | zram-Swap | komprimierter Swap im RAM (50 %), schont die eMMC | `rootfs/etc/default/zramswap` |
 | Power-Taste | kurzer Druck fährt sauber herunter | `rootfs/etc/systemd/logind.conf.d/wyse.conf` |
-| Wyse-Fix | DMA-Treiber `dw_dmac` gesperrt: Ohne den Fix hängt der Wyse 3040 beim Herunterfahren/Neustarten und schaltet sich nicht aus | `rootfs/etc/modprobe.d/wyse-fix.conf` |
-| Grundeinrichtung | Hostname, DHCP/feste IP, optional Cockpit; startet automatisch beim ersten Login | `scripts/wyse-setup.sh` → `sudo wyse-setup`, `rootfs/etc/profile.d/wyse-setup.sh` |
+| Wyse-Fix (**nur Wyse 3040**) | DMA-Treiber `dw_dmac` gesperrt: Ohne den Fix hängt der Wyse 3040 beim Herunterfahren/Neustarten und schaltet sich nicht aus. Wird nur eingespielt, wenn das Gerät erkannt wird. | `hardware/wyse3040/etc/modprobe.d/wyse-fix.conf` |
+| Grundeinrichtung | Hostname, Neustart-Plan, optional Cockpit, DHCP/feste IP; startet automatisch beim ersten Login | `scripts/wyse-setup.sh` → `sudo wyse-setup`, `rootfs/etc/profile.d/wyse-setup.sh` |
 
 Unter `rootfs/` liegen nur **eigene Dateien bzw. Drop-ins** (`*.conf.d/`,
 `*-local`), nie komplette Kopien von Paketdateien. So bleiben Debian-Updates
@@ -105,16 +112,20 @@ konfliktfrei, und es ist sofort sichtbar, was angepasst wurde.
  USB-Stick (Debian-Netinstall + Repo)
  │
  ├─ Debian-Installer liest installer/preseed.cfg
- │    → Sprache, Netzwerk (DHCP), Benutzer, eMMC partitionieren, Minimalsystem
+ │    → Sprache, Netzwerk (DHCP), Benutzer, interne Platte partitionieren,
+ │      Minimalsystem
  │    → late_command: Repo nach /opt/adguard-wyse kopieren,
- │                    Wyse-Fix aktivieren, Ersteinrichtungs-Dienst einschalten
+ │                    Wyse-Fix aktivieren (nur Wyse 3040),
+ │                    Ersteinrichtungs-Dienst einschalten
  │    → Gerät schaltet sich aus
  │
- └─ Erster Start von der eMMC
+ └─ Erster Start von der internen Platte
       adguard-wyse-firstboot.service → scripts/bootstrap.sh
-        → Pakete installieren (ufw, fail2ban, unattended-upgrades, zram …)
+        → Pakete installieren (ufw, fail2ban, unattended-upgrades, zram,
+          Microcode passend zu Intel/AMD …)
         → AdGuard Home herunterladen und als Dienst einrichten
-        → scripts/install.sh: rootfs/ einspielen, Firewall, Dienste
+        → scripts/install.sh: rootfs/ einspielen, Gerät erkennen und
+          ggf. hardware/<gerät>/ einspielen, Firewall, Dienste
         → /var/lib/wyse-setup/bootstrap.done (Dienst läuft danach nie wieder)
 ```
 
@@ -134,9 +145,12 @@ erneut; die Login-Anzeige zeigt dann einen Hinweis.
 ├── scripts/
 │   ├── bootstrap.sh                     # Pakete + AdGuard + install.sh
 │   ├── install.sh                       # spielt rootfs/ ein (auch einzeln nutzbar)
-│   └── wyse-setup.sh                    # Hostname / Passwort / Cockpit / IP
-└── rootfs/                              # Dateien 1:1 wie auf dem System
-    └── etc/ ...                         #   rootfs/etc/issue → /etc/issue
+│   ├── hardware.sh                      # Geräteerkennung
+│   └── wyse-setup.sh                    # Hostname / Passwort / Neustart / Cockpit / IP
+├── rootfs/                              # Dateien 1:1 wie auf dem System (alle Geräte)
+│   └── etc/ ...                         #   rootfs/etc/issue → /etc/issue
+└── hardware/                            # nur für erkannte Geräte
+    └── wyse3040/etc/ ...                #   Wyse-Fix
 ```
 
 ## USB-Stick (ISO) bauen
@@ -211,8 +225,9 @@ Jeder Schritt lässt sich überspringen:
 |---------|--------------|
 | 1. Hostname | setzt den Hostnamen und passt `/etc/hosts` an (Standard: `adguard`) |
 | 2. Passwort | ändert das Passwort eines Linux-Benutzers |
-| 3. Cockpit | installiert auf Wunsch die [Web-Verwaltung](#web-verwaltung-cockpit) |
-| 4. Netzwerk | **DHCP behalten** oder **feste IP** mit Gateway und DNS vergeben. Erkennt `ifupdown` (Debian-Standard), `systemd-networkd` und NetworkManager. Wird nach einem Neustart aktiv. |
+| 3. Neustart | **Uhrzeit** für Neustarts (Standard 04:00, gilt auch für Neustarts nach Updates) und **regelmäßiger Neustart** (empfohlen): täglich oder wöchentlich mit Wochentag (Standard Sonntag) |
+| 4. Cockpit | installiert auf Wunsch die [Web-Verwaltung](#web-verwaltung-cockpit) |
+| 5. Netzwerk | **DHCP behalten** oder **feste IP** mit Gateway und DNS vergeben. Erkennt `ifupdown` (Debian-Standard), `systemd-networkd` und NetworkManager. Wird nach einem Neustart aktiv. |
 
 Hinweise zum Netzwerk:
 
@@ -285,10 +300,11 @@ sudo find /etc -type f -newermt '2026-03-01 14:30' ! -newermt '2026-03-01 18:00'
 | Journal-Größe | `journalctl --disk-usage` |
 | Letzte Auto-Updates | `less /var/log/unattended-upgrades/unattended-upgrades.log` |
 | Port 53 belegt? | `sudo ss -tulpn \| grep ':53'` |
+| Neustart-Plan anzeigen / ändern | `systemctl list-timers wyse-reboot.timer` · `sudo wyse-setup` |
+| Watchdog aktiv? | `sudo wdctl` |
 
-Hinweis zum nächtlichen Auto-Neustart: Währenddessen (ca. 1 Minute) ist DNS im
-Netz nicht erreichbar. Wen das stört, trägt im Router einen zweiten DNS-Server ein
-oder setzt `Automatic-Reboot` in `52unattended-upgrades-local` auf `"false"`.
+Hinweis zum nächtlichen Neustart: Währenddessen (ca. 1 Minute) ist DNS im Netz
+nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo wyse-setup` ändern.
 
 ## Tipps für den Betrieb
 
@@ -303,10 +319,6 @@ oder setzt `Automatic-Reboot` in `52unattended-upgrades-local` auf `"false"`.
   ```
   Bei einem Defekt einfach neu installieren, den Einrichtungsassistenten
   überspringen und die Datei zurückkopieren (AdGuard vorher stoppen).
-- **Ausfallsicherheit:** Fällt der Wyse aus, hat das ganze Netz kein Internet
-  mehr (kein DNS). Optional einen zweiten Wyse als zweiten DNS-Server betreiben.
-  Mit [adguardhome-sync](https://github.com/bakito/adguardhome-sync) lassen sich die
-  Einstellungen automatisch abgleichen.
 - **Port 3000** wird nach dem Einrichtungsassistenten nicht mehr gebraucht:
   `sudo ufw delete allow 3000/tcp`.
 
@@ -327,6 +339,32 @@ oder setzt `Automatic-Reboot` in `52unattended-upgrades-local` auf `"false"`.
   damit der Wyse nach einem Stromausfall von selbst wieder startet.
 - Startet der Stick nicht: im BIOS *Secure Boot* deaktivieren und
   *USB Boot* aktivieren.
+
+## Andere Hardware
+
+Das Projekt ist nicht an den Wyse 3040 gebunden. Die USB-Installation läuft auf
+praktisch jedem **64-Bit-PC (x86-64) mit UEFI**, z.B. andere Thin Clients
+(Fujitsu Futro, HP t-Serie), Mini-PCs oder alte Laptops.
+
+**Mindestens:** 1 GB RAM, 8 GB Speicher, Netzwerkkabel.
+
+Was sich je nach Hardware anpasst:
+
+| Was | Verhalten |
+|-----|-----------|
+| Zielfestplatte | erste interne Platte: eMMC → NVMe → SATA. USB-Laufwerke, Wechseldatenträger und SD-Karten werden übersprungen. ⚠️ Bei mehreren internen Platten wird die **erste** gelöscht. |
+| Wyse-Fix | wird nur auf einem erkannten Wyse 3040 eingespielt ([`hardware/`](hardware/)) |
+| Microcode | Intel oder AMD, je nach Prozessor |
+| Watchdog | nutzt den vorhandenen Watchdog-Chip; ohne Chip passiert nichts |
+
+**Nicht unterstützt** von der USB-Installation:
+
+- **Alte PCs ohne UEFI** (nur Legacy-BIOS): Der Stick startet dort zwar, zeigt
+  aber nur das normale Debian-Menü. Dann Debian manuell installieren und
+  `bootstrap.sh` nutzen ([Alternative](#alternative-debian-selbst-installieren)).
+- **Raspberry Pi / ARM:** Es gibt keine passende ISO. Debian oder Raspberry Pi
+  OS installieren und `bootstrap.sh` nutzen. Das Script lädt automatisch die
+  ARM-Version von AdGuard (ungetestet).
 
 ## Lizenz & Rechtliches
 

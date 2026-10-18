@@ -55,8 +55,16 @@ fi
 status yellow "Einrichtung laeuft (Pakete werden installiert) - bitte warten ..."
 apt-get update
 apt-get install -y "${PACKAGES[@]}"
-# Prozessor-Microcode: nur verfügbar, wenn non-free-firmware in den Paketquellen ist
-apt-get install -y intel-microcode 2>/dev/null || echo "intel-microcode nicht verfügbar – übersprungen."
+# Prozessor-Microcode (Sicherheits-/Stabilitätsupdates der CPU) passend zum Hersteller.
+# Nur verfügbar, wenn non-free-firmware in den Paketquellen ist.
+case "$(awk -F': ' '/^vendor_id/ {print $2; exit}' /proc/cpuinfo)" in
+    GenuineIntel) MICROCODE=intel-microcode ;;
+    AuthenticAMD) MICROCODE=amd64-microcode ;;
+    *)            MICROCODE="" ;;
+esac
+if [[ -n $MICROCODE ]]; then
+    apt-get install -y "$MICROCODE" 2>/dev/null || echo "$MICROCODE nicht verfügbar – übersprungen."
+fi
 
 # ------------------------------------------------------------ AdGuard Home
 

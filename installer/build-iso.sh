@@ -41,7 +41,7 @@ echo "==> Stelle Repo-Dateien zusammen ..."
 STAGE="$BUILD_DIR/stage"
 rm -rf "$STAGE"
 mkdir -p "$STAGE/adguard-wyse"
-cp -r "$REPO_DIR/rootfs" "$REPO_DIR/scripts" "$REPO_DIR/installer" "$STAGE/adguard-wyse/"
+cp -r "$REPO_DIR/rootfs" "$REPO_DIR/hardware" "$REPO_DIR/scripts" "$REPO_DIR/installer" "$STAGE/adguard-wyse/"
 # Falls unter Windows ausgecheckt: Zeilenenden sicherheitshalber auf LF
 find "$STAGE" -type f -exec sed -i 's/\r$//' {} +
 chmod 755 "$STAGE"/adguard-wyse/scripts/*.sh "$STAGE"/adguard-wyse/rootfs/etc/update-motd.d/*

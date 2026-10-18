@@ -1,5 +1,5 @@
 # /etc/profile.d/wyse-setup.sh
-# Fragt beim Login nach der Grundeinrichtung (Hostname, DHCP oder feste IP),
+# Fragt beim Login nach der Grundeinrichtung (Hostname, Neustart, DHCP/feste IP),
 # bis "sudo wyse-setup" einmal vollständig durchgelaufen ist.
 
 # Nur interaktive Shells (nicht bei scp, ssh <befehl> usw.)
@@ -16,7 +16,7 @@ fi
 # Nur Benutzer mit Admin-Rechten fragen
 id -nG 2>/dev/null | grep -qw sudo || [ "$(id -u)" -eq 0 ] || return 0
 
-printf '\n\033[1;33mDie Grundeinrichtung (Hostname, DHCP oder feste IP) ist noch nicht erledigt.\033[0m\n'
+printf '\n\033[1;33mDie Grundeinrichtung (Hostname, Neustart-Zeitplan, DHCP oder feste IP) ist noch nicht erledigt.\033[0m\n'
 printf 'Jetzt starten? [J/n] '
 read -r _wyse_answer
 case "$_wyse_answer" in

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wyse-setup.sh – Grundeinstellungen für den AdGuard-Wyse3040 (Hostname, Passwort, IP)
+# wyse-setup.sh – Grundeinrichtung des AdGuard-Servers (Hostname, Passwort, Neustart, IP)
 #
 # Auf dem Gerät installiert als:  /usr/local/sbin/wyse-setup
 # Aufruf:                         sudo wyse-setup
@@ -7,8 +7,9 @@
 # Schritte (jeder einzeln überspringbar):
 #   1. Hostname setzen
 #   2. Linux-Passwort ändern
-#   3. Web-Verwaltung Cockpit installieren (optional)
-#   4. Netzwerk: DHCP oder feste IP
+#   3. Automatischer Neustart: täglich/wöchentlich, Uhrzeit (auch für Updates)
+#   4. Web-Verwaltung Cockpit installieren (optional)
+#   5. Netzwerk: DHCP oder feste IP
 #
 # Die AdGuard-Einrichtung (Admin-Benutzer, Upstreams, Filter) erfolgt über
 # den Setup-Assistenten im Webinterface (Port 3000) und nicht hier.
@@ -101,7 +102,95 @@ step_linux_password() {
     passwd "$user"
 }
 
-# ---------------------------------------------------------------- 3. Cockpit
+# ---------------------------------------------------------------- 3. Neustart-Zeitplan
+
+REBOOT_TIMER="/etc/systemd/system/wyse-reboot.timer"
+REBOOT_SERVICE="/etc/systemd/system/wyse-reboot.service"
+APT_REBOOT_CONF="/etc/apt/apt.conf.d/53wyse-reboot-time"
+
+step_reboot() {
+    info "Automatischer Neustart"
+    local time freq day day_en desc
+
+    if systemctl is-enabled --quiet wyse-reboot.timer 2>/dev/null; then
+        echo "Aktuell: $(systemctl show -p Description --value wyse-reboot.timer)"
+    else
+        echo "Aktuell: kein regelmäßiger Neustart eingerichtet."
+    fi
+    echo
+    echo "Ein regelmäßiger Neustart hält das System auf Dauer stabil. Während des"
+    echo "Neustarts (ca. 1 Minute) ist DNS im Netz nicht erreichbar, deshalb nachts."
+    echo "Die Uhrzeit gilt auch für Neustarts, die nach automatischen Updates nötig sind."
+    echo
+
+    while true; do
+        time="$(ask "Uhrzeit für Neustarts (HH:MM)" "04:00")"
+        [[ $time =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] && break
+        warn "Bitte im Format HH:MM angeben, z.B. 04:00."
+    done
+    printf '// erzeugt von wyse-setup\nUnattended-Upgrade::Automatic-Reboot-Time "%s";\n' "$time" > "$APT_REBOOT_CONF"
+
+    if ! yesno "Regelmäßigen Neustart einrichten? (empfohlen)" j; then
+        if [[ -f $REBOOT_TIMER ]]; then
+            systemctl disable --now wyse-reboot.timer 2>/dev/null || true
+            rm -f "$REBOOT_TIMER" "$REBOOT_SERVICE"
+            systemctl daemon-reload
+        fi
+        echo "Kein regelmäßiger Neustart. Neustarts nach Updates: $time Uhr."
+        return 0
+    fi
+
+    freq="$(ask "(w)öchentlich oder (t)äglich" "w")"
+    if [[ ${freq,,} == t* ]]; then
+        day_en="*-*-*"
+        desc="täglich um $time Uhr"
+    else
+        while true; do
+            day="$(ask "Wochentag (Mo, Di, Mi, Do, Fr, Sa, So)" "So")"
+            case "${day,,}" in
+                mo*) day_en=Mon; day=Montag ;;
+                di*) day_en=Tue; day=Dienstag ;;
+                mi*) day_en=Wed; day=Mittwoch ;;
+                do*) day_en=Thu; day=Donnerstag ;;
+                fr*) day_en=Fri; day=Freitag ;;
+                sa*) day_en=Sat; day=Samstag ;;
+                so*) day_en=Sun; day=Sonntag ;;
+                *)   warn "Unbekannter Wochentag."; continue ;;
+            esac
+            break
+        done
+        day_en="$day_en *-*-*"
+        desc="wöchentlich am $day um $time Uhr"
+    fi
+
+    cat > "$REBOOT_SERVICE" <<EOF
+# erzeugt von wyse-setup
+[Unit]
+Description=Regelmäßiger Neustart
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl reboot
+EOF
+    cat > "$REBOOT_TIMER" <<EOF
+# erzeugt von wyse-setup – ändern mit: sudo wyse-setup
+[Unit]
+Description=Neustart $desc
+
+[Timer]
+OnCalendar=$day_en $time:00
+# Verpasste Termine (Gerät war aus) NICHT nachholen
+Persistent=false
+
+[Install]
+WantedBy=timers.target
+EOF
+    systemctl daemon-reload
+    systemctl enable --now wyse-reboot.timer
+    echo "Eingerichtet: Neustart $desc."
+}
+
+# ---------------------------------------------------------------- 4. Cockpit
 
 step_cockpit() {
     info "Web-Verwaltung (Cockpit)"
@@ -127,7 +216,7 @@ step_cockpit() {
     warn "Der Browser warnt beim ersten Aufruf vor dem selbst signierten Zertifikat – das ist normal."
 }
 
-# ---------------------------------------------------------------- 4. Netzwerk
+# ---------------------------------------------------------------- 5. Netzwerk
 
 detect_iface() {
     local i
@@ -278,7 +367,7 @@ main() {
     fi
 
     echo "======================================================"
-    echo "  AdGuard Wyse 3040 – Einrichtung"
+    echo "  AdGuard Home – Grundeinrichtung"
     echo "======================================================"
     if [[ -f $DONE_FILE ]]; then
         echo "Zuletzt ausgeführt: $(cat "$DONE_FILE")"
@@ -286,6 +375,7 @@ main() {
 
     step_hostname
     step_linux_password
+    step_reboot
     step_cockpit
     step_network
 
