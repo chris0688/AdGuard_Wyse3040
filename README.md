@@ -313,6 +313,16 @@ nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo adguard-setup` änd
 
 ## Tipps für den Betrieb
 
+- **AdGuard Home selbst aktualisieren:** Die automatischen Updates betreffen nur
+  Debian, **nicht AdGuard Home**. Ist eine neue Version verfügbar, zeigt das
+  AdGuard-Dashboard oben einen Hinweis; das Update ist dann ein Klick. Einfach ab
+  und zu ins Dashboard schauen.
+- **Abfrageprotokoll begrenzen:** AdGuard speichert standardmäßig alle
+  DNS-Anfragen der letzten 90 Tage. Das kann auf Dauer über 1 GB werden, was auf
+  der kleinen eMMC knapp wird. Empfehlung: in AdGuard unter
+  *Einstellungen → Allgemeine Einstellungen → Protokoll* die Aufbewahrung auf
+  **7 Tage** (oder 24 Stunden) stellen.
+
 - **IPv6 beachten:** Viele Router (z.B. FritzBox) verteilen per IPv6 zusätzlich
   sich selbst als DNS-Server. Dann fragen Geräte am AdGuard vorbei. Abhilfe: im
   Router auch für IPv6 den Wyse als DNS eintragen oder die IPv6-DNS-Verteilung
