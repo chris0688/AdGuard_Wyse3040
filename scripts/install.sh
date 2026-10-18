@@ -45,6 +45,7 @@ chmod 755 /etc/update-motd.d/*
 echo "==> Installiere adguard-setup und adguard-banner nach /usr/local/sbin ..."
 install -m 755 "$REPO_DIR/scripts/adguard-setup.sh"  /usr/local/sbin/adguard-setup
 install -m 755 "$REPO_DIR/scripts/adguard-banner.sh" /usr/local/sbin/adguard-banner
+install -m 755 "$REPO_DIR/scripts/adguard-backup.sh" /usr/local/sbin/adguard-backup
 
 echo "==> Firewall (ufw) ..."
 for rule in "${UFW_RULES[@]}"; do
@@ -56,6 +57,7 @@ echo "==> Dienste neu laden ..."
 systemctl daemon-reexec          # system.conf.d (Watchdog) übernehmen
 systemctl enable adguard-banner.service
 systemctl enable --now adguard-banner.path
+systemctl enable --now adguard-backup.timer
 /usr/local/sbin/adguard-banner
 systemctl restart systemd-journald
 systemctl enable --now fail2ban

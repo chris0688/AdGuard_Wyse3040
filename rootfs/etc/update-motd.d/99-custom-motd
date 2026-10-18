@@ -75,6 +75,17 @@ else
     AUTO_UPDATE="${LIGHT_GREEN}aktiv${NC} ${GRAY}– noch nicht gelaufen (täglich morgens)${NC}"
 fi
 
+# Sicherungen der AdGuard-Einstellungen (adguard-backup)
+BACKUP_COUNT=$(ls -1 /var/backups/adguard/AdGuardHome-*.yaml 2>/dev/null | wc -l)
+if (( BACKUP_COUNT > 0 )); then
+    BACKUP_LAST=$(date -r "$(ls -1t /var/backups/adguard/AdGuardHome-*.yaml | head -n1)" '+%d.%m.%Y %H:%M')
+    BACKUP_INFO="${CYAN}zuletzt ${BACKUP_LAST}${NC} ${GRAY}(${BACKUP_COUNT} Versionen, sudo adguard-backup)${NC}"
+elif [[ -f /opt/AdGuardHome/AdGuardHome.yaml ]]; then
+    BACKUP_INFO="${GRAY}noch keine – erfolgt täglich automatisch bei Änderungen${NC}"
+else
+    BACKUP_INFO="${GRAY}–${NC}"
+fi
+
 # Web-Konsole (Cockpit), falls installiert
 WEBCONSOLE=""
 systemctl is-enabled --quiet cockpit.socket 2>/dev/null && WEBCONSOLE="https://${IP_ADDR}:9090"
@@ -129,6 +140,7 @@ echo -e "  ${BLUE}Webinterface:${NC}  ${CYAN}${AGH_URL}${NC}"
 echo ""
 echo -e "  ${BLUE}Auto-Update:${NC}   ${AUTO_UPDATE}"
 echo -e "  ${BLUE}Auto-Neustart:${NC} ${CYAN}${REBOOT_PLAN}${NC}"
+echo -e "  ${BLUE}Backup:${NC}        ${BACKUP_INFO}"
 echo -e "$LINE"
 
 if [[ ! -f /var/lib/adguard-setup/setup.done ]]; then

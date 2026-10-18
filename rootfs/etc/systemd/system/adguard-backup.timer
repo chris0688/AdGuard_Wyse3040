@@ -1,0 +1,12 @@
+# Täglich um 03:30 (vor dem Standard-Neustart um 04:00) die AdGuard-Einstellungen
+# sichern, falls sie sich geändert haben. Verpasst (Gerät war aus) -> beim nächsten
+# Start nachholen.
+[Unit]
+Description=AdGuard-Einstellungen täglich sichern
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

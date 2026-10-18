@@ -1,0 +1,6 @@
+[Unit]
+Description=AdGuard-Einstellungen sichern (nur bei Änderungen)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/adguard-backup --auto

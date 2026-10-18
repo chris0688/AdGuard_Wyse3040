@@ -98,6 +98,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 | Watchdog | startet das Gerät automatisch neu, falls sich das System komplett aufhängt (sofern ein Watchdog-Chip vorhanden ist, beim Wyse 3040 ja) | `rootfs/etc/systemd/system.conf.d/watchdog.conf` |
 | Paket-Cache | wird alle 7 Tage aufgeräumt | `rootfs/etc/apt/apt.conf.d/70autoclean` |
 | Uhrzeit | automatisch per NTP von `de.pool.ntp.org` (Rückfall: Debian-Pool); die Begrüßung warnt, falls nicht synchronisiert | `rootfs/etc/systemd/timesyncd.conf.d/adguard.conf` |
+| AdGuard-Backup | täglich 03:30 bei Änderungen, letzte 7 Versionen; Verwaltung und Wiederherstellung mit `sudo adguard-backup` | `scripts/adguard-backup.sh`, `rootfs/etc/systemd/system/adguard-backup.*` |
 | Firewall (ufw) | offen: 22/tcp (SSH), 53 (DNS), 80/tcp, 443, 3000/tcp (Setup-Assistent) | `scripts/install.sh` |
 | fail2ban | SSH: 5 Fehlversuche in 10 Min. → 15 Min. Sperre, Wiederholungstäter länger (bis 1 Woche) | `rootfs/etc/fail2ban/jail.local` |
 | zram-Swap | komprimierter Swap im RAM (50 %), schont die eMMC | `rootfs/etc/default/zramswap` |
@@ -150,7 +151,8 @@ erneut; die Login-Anzeige zeigt dann einen Hinweis.
 │   ├── install.sh                       # spielt rootfs/ ein (auch einzeln nutzbar)
 │   ├── hardware.sh                      # Geräteerkennung
 │   ├── adguard-setup.sh                 # Hostname / Passwort / Neustart / Cockpit / IP
-│   └── adguard-banner.sh                # erzeugt den Login-Banner (/etc/issue)
+│   ├── adguard-banner.sh                # erzeugt den Login-Banner (/etc/issue)
+│   └── adguard-backup.sh                # Backups der AdGuard-Einstellungen
 ├── rootfs/                              # Dateien 1:1 wie auf dem System (alle Geräte)
 │   └── etc/ ...                         #   z.B. rootfs/etc/fail2ban/jail.local
 └── hardware/                            # nur für erkannte Geräte
@@ -327,30 +329,34 @@ nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo adguard-setup` änd
   sich selbst als DNS-Server. Dann fragen Geräte am AdGuard vorbei. Abhilfe: im
   Router auch für IPv6 den Wyse als DNS eintragen oder die IPv6-DNS-Verteilung
   abschalten. Prüfen: Im AdGuard-Dashboard sollten alle Geräte auftauchen.
-- **Regelmäßig ein Backup der AdGuard-Einstellungen machen**, vor allem nach
-  größeren Änderungen. Das Webinterface hat dafür keine Funktion, aber alle
-  Einstellungen (Filter, eigene Regeln, Clients, Admin-Zugang) stecken in einer
-  einzigen Datei: `/opt/AdGuardHome/AdGuardHome.yaml`.
+- **Backups der AdGuard-Einstellungen** laufen automatisch: Alle Einstellungen
+  (Filter, eigene Regeln, Clients, Admin-Zugang) stecken in einer Datei
+  (`/opt/AdGuardHome/AdGuardHome.yaml`). Sie wird **täglich um 03:30 gesichert,
+  wenn sie sich geändert hat**; die **letzten 7 Versionen** bleiben in
+  `/var/backups/adguard/`. Verwalten mit:
+  ```bash
+  sudo adguard-backup
+  ```
+  Das zeigt alle Versionen und bietet an: **jetzt sichern**, **Version
+  wiederherstellen** (der aktuelle Stand wird vorher gesichert; startet AdGuard
+  mit der alten Version nicht, wird automatisch zurückgerollt) und **Version
+  zum Download bereitlegen**.
 
-  **Sichern:**
-  1. Auf dem Gerät (SSH oder Cockpit-Terminal) die Datei ins Home-Verzeichnis kopieren,
-     da sie nur für root lesbar ist:
-     ```bash
-     sudo cp /opt/AdGuardHome/AdGuardHome.yaml ~/AdGuardHome-$(date +%F).yaml
-     sudo chown $USER ~/AdGuardHome-*.yaml
-     ```
-  2. Auf den PC holen: mit [WinSCP](https://winscp.net) (grafisch, Anmeldung wie
-     bei SSH) oder in PowerShell:
-     ```powershell
-     scp "adguard@<IP>:AdGuardHome-*.yaml" .
-     ```
+  **Zusätzlich ab und zu eine Kopie auf den PC holen.** Die Sicherungen liegen
+  auf demselben Gerät und helfen nicht, wenn die eMMC kaputtgeht. In
+  `adguard-backup` „Version zum Download bereitlegen“ wählen, dann die Datei mit
+  [WinSCP](https://winscp.net) (grafisch, Anmeldung wie bei SSH) oder in
+  PowerShell holen:
+  ```powershell
+  scp "adguard@<IP>:AdGuardHome-*.yaml" .
+  ```
 
-  **Wiederherstellen** (z.B. nach einer Neuinstallation): Den AdGuard-
+  **Nach einer Neuinstallation wiederherstellen:** Den AdGuard-
   Einrichtungsassistenten **nicht** durchklicken, sondern die Datei aufs Gerät
-  kopieren und dort:
+  kopieren (WinSCP/`scp` ins Home-Verzeichnis) und dort:
   ```bash
   sudo systemctl stop AdGuardHome
-  sudo cp ~/AdGuardHome-<datum>.yaml /opt/AdGuardHome/AdGuardHome.yaml
+  sudo install -m 600 ~/AdGuardHome-<datum>.yaml /opt/AdGuardHome/AdGuardHome.yaml
   sudo systemctl start AdGuardHome
   ```
 
