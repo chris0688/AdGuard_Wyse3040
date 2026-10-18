@@ -347,7 +347,14 @@ nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo adguard-setup` änd
   - **Version zum Download bereitlegen** (für WinSCP/`scp`)
 
   USB-Sticks mit FAT32, exFAT, NTFS oder ext4 werden erkannt. Bei mehreren
-  Sticks wird gefragt; danach wird der Stick ausgehängt und kann abgezogen werden.
+  Sticks wird gefragt. Der Stick ist nur während des Kopierens eingehängt (schützt
+  vor Datenverlust bei Stromausfall); er kann danach stecken bleiben oder
+  abgezogen werden.
+
+  **Stick dauerhaft stecken lassen:** Gibt es auf einem eingesteckten Stick den
+  Ordner `AdGuard-Backup/` (entsteht beim ersten **(u)**), kopiert die tägliche
+  Sicherung jede neue Version automatisch mit darauf. Auf dem Stick bleiben die
+  letzten 30 Versionen.
 
   **Zusätzlich ab und zu eine Kopie außerhalb des Geräts aufbewahren.** Die
   automatischen Sicherungen liegen auf derselben eMMC und helfen nicht, wenn sie

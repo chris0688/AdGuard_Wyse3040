@@ -7,7 +7,9 @@
 #                                auf USB-Stick kopieren / von USB-Stick wiederherstellen,
 #                                Version zum Herunterladen bereitlegen
 #   adguard-backup --auto        (täglich per Timer) sichert nur, wenn sich die
-#                                Einstellungen seit der letzten Sicherung geändert haben
+#                                Einstellungen seit der letzten Sicherung geändert haben,
+#                                und kopiert die neueste Version auf eingesteckte USB-Sticks
+#                                mit Ordner AdGuard-Backup/
 #
 # Behalten werden die letzten KEEP Versionen in BACKUP_DIR.
 set -euo pipefail
@@ -208,7 +210,7 @@ umount_usb() {
     if (( USB_MOUNTED_BY_US )); then
         if umount "$USB_MNT"; then
             rmdir "$USB_MNT" || true
-            info "Der USB-Stick kann jetzt abgezogen werden."
+            echo "USB-Stick ausgehängt – er kann stecken bleiben oder gefahrlos abgezogen werden."
         else
             warn "USB-Stick konnte nicht ausgehängt werden – vor dem Abziehen: sudo umount $USB_MNT"
         fi
@@ -234,10 +236,47 @@ copy_to_usb() {
     mount_usb || return 0
     if mkdir -p "$USB_MNT/$USB_DIR_NAME" && cp "${files[@]}" "$USB_MNT/$USB_DIR_NAME/"; then
         info "${#files[@]} Version(en) auf den USB-Stick kopiert (Ordner $USB_DIR_NAME)."
+        echo "Bleibt der Stick stecken, wird jede neue Sicherung automatisch mit draufkopiert."
     else
         err "Kopieren fehlgeschlagen (Stick voll oder schreibgeschützt?)."
     fi
     umount_usb
+}
+
+# Für --auto: die neueste Sicherung auf jeden eingesteckten USB-Stick kopieren,
+# auf dem es den Ordner AdGuard-Backup/ gibt (entsteht beim ersten Kopieren mit (u)).
+# Ohne Rückfragen; der Stick ist nur während des Kopierens eingehängt.
+USB_KEEP=30
+auto_copy_to_usb() {
+    local newest="$1" p dev mnt mounted
+    while IFS= read -r p; do
+        dev="${p%%|*}"
+        mnt="$(findmnt -nro TARGET -S "$dev" 2>/dev/null | head -n1 || true)"
+        mounted=0
+        if [[ -z $mnt ]]; then
+            mnt="$(mktemp -d /mnt/adguard-usb.XXXX)"
+            if ! mount -o nosuid,nodev,noexec "$dev" "$mnt" 2>/dev/null \
+               && ! mount -t ntfs3 -o nosuid,nodev,noexec "$dev" "$mnt" 2>/dev/null; then
+                rmdir "$mnt"
+                continue
+            fi
+            mounted=1
+        fi
+        if [[ -d $mnt/$USB_DIR_NAME && ! -f $mnt/$USB_DIR_NAME/$(basename "$newest") ]]; then
+            if cp "$newest" "$mnt/$USB_DIR_NAME/"; then
+                echo "Auch auf USB-Stick kopiert: ${p#*|}"
+                # Nur eigene Sicherungen aufräumen, selbst abgelegte Dateien bleiben
+                ls -1t "$mnt/$USB_DIR_NAME"/AdGuardHome-*.yaml 2>/dev/null \
+                    | tail -n +$((USB_KEEP + 1)) | xargs -r rm -f
+            else
+                echo "Kopieren auf USB-Stick fehlgeschlagen: ${p#*|}" >&2
+            fi
+        fi
+        sync
+        if (( mounted )); then
+            umount "$mnt" && rmdir "$mnt" || true
+        fi
+    done < <(find_usb_partitions)
 }
 
 # Anzeigename einer Sicherungsdatei (auch für umbenannte Dateien auf dem Stick)
@@ -298,6 +337,10 @@ fi
 
 if [[ ${1:-} == --auto ]]; then
     backup_now || true
+    newest="$(list_backups | head -n1)"
+    # Auch wenn sich nichts geändert hat: ein neu eingesteckter Stick bekommt so
+    # beim nächsten Lauf den aktuellen Stand.
+    [[ -n $newest ]] && auto_copy_to_usb "$newest"
     exit 0
 fi
 
