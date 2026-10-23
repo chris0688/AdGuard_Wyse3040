@@ -431,9 +431,12 @@ erfolgreichem Test folgt Version **1.0**.
 Danach geplant:
 
 - **Englische / internationale Version:** ein gemeinsamer USB-Stick mit Auswahl
-  der Sprache im Bootmenü (Deutsch oder Englisch, inkl. passendem
-  Tastaturlayout), alle Bildschirmtexte zweisprachig, Zeitzone wählbar, README
-  auf Englisch.
+  der Sprache im Bootmenü (Deutsch oder Englisch). Dabei berücksichtigt:
+  - **Texte:** alle Bildschirmtexte und Menüs zweisprachig, README auf Englisch
+  - **Tastaturlayout:** passend zur Sprache (z.B. deutsch / US), änderbar
+  - **Region:** Zeitzone sowie Datums- und Zahlenformat wählbar statt fest Berlin
+  - **Zeitserver:** passend zur Region (z.B. `de.pool.ntp.org`,
+    `europe.pool.ntp.org` oder weltweit `pool.ntp.org`)
 
 ## Lizenz & Rechtliches
 
