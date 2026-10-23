@@ -149,6 +149,7 @@ if [[ ! -f /var/lib/adguard-setup/setup.done ]]; then
 fi
 
 echo -e "  ${YELLOW}Befehle:${NC}"
+echo -e "    ${WHITE}status${NC}               ${GRAY}diese Übersicht erneut anzeigen${NC}"
 echo -e "    ${WHITE}sudo adguard-setup${NC}   ${GRAY}Hostname, Passwort, Neustart-Plan, Cockpit, DHCP/feste IP${NC}"
 echo -e "    ${WHITE}sudo adguard-backup${NC}  ${GRAY}Backups anzeigen, wiederherstellen, auf USB-Stick sichern${NC}"
 echo -e "$LINE"

@@ -46,6 +46,18 @@ echo "==> Installiere adguard-setup und adguard-banner nach /usr/local/sbin ..."
 install -m 755 "$REPO_DIR/scripts/adguard-setup.sh"  /usr/local/sbin/adguard-setup
 install -m 755 "$REPO_DIR/scripts/adguard-banner.sh" /usr/local/sbin/adguard-banner
 install -m 755 "$REPO_DIR/scripts/adguard-backup.sh" /usr/local/sbin/adguard-backup
+install -m 755 "$REPO_DIR/scripts/status.sh"         /usr/local/bin/status
+
+# "status" darf die Übersicht ohne Passwort mit Admin-Rechten anzeigen.
+# Vor dem Aktivieren prüfen – eine fehlerhafte sudoers-Datei würde sudo blockieren.
+SUDOERS_TMP="$(mktemp)"
+echo '%sudo ALL=(root) NOPASSWD: /etc/update-motd.d/99-custom-motd' > "$SUDOERS_TMP"
+if visudo -cqf "$SUDOERS_TMP"; then
+    install -m 440 "$SUDOERS_TMP" /etc/sudoers.d/adguard-status
+else
+    echo "WARNUNG: sudoers-Regel für 'status' ungültig – übersprungen." >&2
+fi
+rm -f "$SUDOERS_TMP"
 
 echo "==> Firewall (ufw) ..."
 for rule in "${UFW_RULES[@]}"; do

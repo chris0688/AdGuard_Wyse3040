@@ -152,7 +152,8 @@ erneut; die Login-Anzeige zeigt dann einen Hinweis.
 │   ├── hardware.sh                      # Geräteerkennung
 │   ├── adguard-setup.sh                 # Hostname / Passwort / Neustart / Cockpit / IP
 │   ├── adguard-banner.sh                # erzeugt den Login-Banner (/etc/issue)
-│   └── adguard-backup.sh                # Backups der AdGuard-Einstellungen
+│   ├── adguard-backup.sh                # Backups der AdGuard-Einstellungen
+│   └── status.sh                        # Befehl "status": Übersicht erneut anzeigen
 ├── rootfs/                              # Dateien 1:1 wie auf dem System (alle Geräte)
 │   └── etc/ ...                         #   z.B. rootfs/etc/fail2ban/jail.local
 └── hardware/                            # nur für erkannte Geräte
@@ -295,6 +296,7 @@ sudo find /etc -type f -newermt '2026-03-01 14:30' ! -newermt '2026-03-01 18:00'
 
 | Aufgabe | Befehl |
 |---------|--------|
+| **Übersicht anzeigen** (wie nach dem Login) | `status` |
 | Ersteinrichtung verfolgen | `journalctl -fu adguard-firstboot` |
 | Status AdGuard | `systemctl status AdGuardHome` |
 | AdGuard neu starten | `sudo systemctl restart AdGuardHome` |
