@@ -11,6 +11,9 @@ eingerichtet. Linux-Kenntnisse sind dafür nicht nötig.
 Gebaut für den Wyse 3040, funktioniert aber auch auf
 [anderer Hardware](#andere-hardware) (praktisch jeder 64-Bit-PC mit UEFI).
 
+> 🇬🇧 *This project is currently available in German only. An English version is
+> planned once testing is complete – see [Ausblick](#ausblick).*
+
 ---
 
 ## Inhalt
@@ -28,6 +31,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 - [Tipps für den Betrieb](#tipps-für-den-betrieb)
 - [Hardware & BIOS](#hardware--bios)
 - [Andere Hardware](#andere-hardware)
+- [Ausblick](#ausblick)
 - [Lizenz & Rechtliches](#lizenz--rechtliches)
 
 ---
@@ -418,6 +422,18 @@ Was sich je nach Hardware anpasst:
 - **Raspberry Pi / ARM:** Es gibt keine passende ISO. Debian oder Raspberry Pi
   OS installieren und `bootstrap.sh` nutzen. Das Script lädt automatisch die
   ARM-Version von AdGuard (ungetestet).
+
+## Ausblick
+
+Das Projekt befindet sich in der **Testphase** (Versionen `v0.x`). Nach
+erfolgreichem Test folgt Version **1.0**.
+
+Danach geplant:
+
+- **Englische / internationale Version:** ein gemeinsamer USB-Stick mit Auswahl
+  der Sprache im Bootmenü (Deutsch oder Englisch, inkl. passendem
+  Tastaturlayout), alle Bildschirmtexte zweisprachig, Zeitzone wählbar, README
+  auf Englisch.
 
 ## Lizenz & Rechtliches
 
