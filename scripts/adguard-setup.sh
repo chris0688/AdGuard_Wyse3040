@@ -45,6 +45,25 @@ ask() {
     echo "${answer:-$2}"
 }
 
+# choose "Frage" <standard-nr> "Option 1" "Option 2" ... -> gewählte Nummer auf stdout
+choose() {
+    local question="$1" def="$2" i=1 opt answer
+    shift 2
+    for opt in "$@"; do
+        printf '  %d) %s\n' "$i" "$opt" >&2
+        i=$((i + 1))
+    done
+    while true; do
+        read -rp "$question [$def]: " answer
+        answer="${answer:-$def}"
+        if [[ $answer =~ ^[0-9]+$ ]] && (( answer >= 1 && answer <= $# )); then
+            echo "$answer"
+            return
+        fi
+        warn "Bitte eine Zahl von 1 bis $# eingeben." >&2
+    done
+}
+
 # yesno "Frage" "j|n" -> Rückgabewert 0 bei ja
 yesno() {
     local def="$2" answer
@@ -243,14 +262,16 @@ APT_REBOOT_CONF="/etc/apt/apt.conf.d/53adguard-reboot-time"
 
 step_reboot() {
     info "Automatischer Neustart"
-    local time freq day day_en desc
-    local def_time def_regular=j def_freq=w def_day=So
+    local time freq day_nr day day_en desc
+    local def_time def_regular=j def_freq=1 def_day=7
+    local -a DAYS_DE=(Montag Dienstag Mittwoch Donnerstag Freitag Samstag Sonntag)
+    local -a DAYS_EN=(Mon Tue Wed Thu Fri Sat Sun)
     def_time="${PRESET[REBOOT_TIME]:-$(current_reboot_time)}"
     [[ ${PRESET[REBOOT_MODE]:-} == none ]] && def_regular=n
-    [[ ${PRESET[REBOOT_MODE]:-} == daily ]] && def_freq=t
+    [[ ${PRESET[REBOOT_MODE]:-} == daily ]] && def_freq=2
     case "${PRESET[REBOOT_DAY]:-}" in
-        Mon) def_day=Mo ;; Tue) def_day=Di ;; Wed) def_day=Mi ;; Thu) def_day=Do ;;
-        Fri) def_day=Fr ;; Sat) def_day=Sa ;; Sun) def_day=So ;;
+        Mon) def_day=1 ;; Tue) def_day=2 ;; Wed) def_day=3 ;; Thu) def_day=4 ;;
+        Fri) def_day=5 ;; Sat) def_day=6 ;; Sun) def_day=7 ;;
     esac
 
     if systemctl is-enabled --quiet adguard-reboot.timer 2>/dev/null; then
@@ -281,26 +302,16 @@ step_reboot() {
         return 0
     fi
 
-    freq="$(ask "(w)öchentlich oder (t)äglich" "$def_freq")"
-    if [[ ${freq,,} == t* ]]; then
+    echo "Wie oft?"
+    freq="$(choose "Auswahl" "$def_freq" "wöchentlich" "täglich")"
+    if [[ $freq == 2 ]]; then
         day_en="*-*-*"
         desc="täglich um $time Uhr"
     else
-        while true; do
-            day="$(ask "Wochentag (Mo, Di, Mi, Do, Fr, Sa, So)" "$def_day")"
-            case "${day,,}" in
-                mo*) day_en=Mon; day=Montag ;;
-                di*) day_en=Tue; day=Dienstag ;;
-                mi*) day_en=Wed; day=Mittwoch ;;
-                do*) day_en=Thu; day=Donnerstag ;;
-                fr*) day_en=Fri; day=Freitag ;;
-                sa*) day_en=Sat; day=Samstag ;;
-                so*) day_en=Sun; day=Sonntag ;;
-                *)   warn "Unbekannter Wochentag."; continue ;;
-            esac
-            break
-        done
-        day_en="$day_en *-*-*"
+        echo "An welchem Wochentag?"
+        day_nr="$(choose "Auswahl" "$def_day" "${DAYS_DE[@]}")"
+        day="${DAYS_DE[$((day_nr - 1))]}"
+        day_en="${DAYS_EN[$((day_nr - 1))]} *-*-*"
         desc="wöchentlich am $day um $time Uhr"
     fi
 
@@ -414,23 +425,23 @@ step_network() {
     echo "feste DHCP-Adresse reservieren (dann DHCP behalten)."
     echo
 
-    local def_mode=u
+    local def_mode=3
     case "${PRESET[NET_MODE]:-}" in
         static)
-            def_mode=s
+            def_mode=2
             echo "Aus dem Backup: feste IP ${PRESET[NET_ADDR]:-?}, Gateway ${PRESET[NET_GW]:-?}"
             warn "Diese Adresse darf im Netz nicht schon vergeben sein (z.B. durch das alte Gerät)."
             echo ;;
         dhcp)
-            def_mode=d
+            def_mode=1
             echo "Aus dem Backup: DHCP"
             echo ;;
     esac
 
-    mode="$(ask "(d)HCP verwenden, (s)tatische IP vergeben oder (u)nverändert lassen" "$def_mode")"
-    case "${mode,,}" in
-        s*) mode=static ;;
-        d*) mode=dhcp
+    mode="$(choose "Auswahl" "$def_mode" "DHCP (Adresse vom Router)" "feste IP vergeben" "unverändert lassen ($cur_mode)")"
+    case "$mode" in
+        2) mode=static ;;
+        1) mode=dhcp
             if [[ $cur_mode == DHCP ]]; then echo "DHCP ist bereits aktiv."; return 0; fi ;;
         *)  echo "Netzwerk bleibt unverändert."; return 0 ;;
     esac

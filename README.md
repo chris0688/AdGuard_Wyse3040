@@ -326,7 +326,7 @@ Minuten wie vorher:
 > **Feste IP:** Läuft das alte Gerät noch, darf es nicht dieselbe IP haben.
 > Vorher ausschalten oder bei der Frage eine andere Adresse eintragen.
 
-Später lässt sich ein Backup jederzeit mit `sudo adguard-backup` → **(v)** vom
+Später lässt sich ein Backup jederzeit mit `sudo adguard-backup` → **4** vom
 Stick zurückspielen (nur AdGuard).
 
 ## Wartung & Troubleshooting
@@ -379,13 +379,13 @@ nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo adguard-setup` änd
   sudo adguard-backup
   ```
   Das zeigt alle Versionen und bietet an:
-  - **jetzt sichern**
-  - **Version wiederherstellen**: Der aktuelle Stand wird vorher gesichert;
-    startet AdGuard mit der alten Version nicht, wird automatisch zurückgerollt.
-  - **auf USB-Stick kopieren**: eine Version oder alle, in den Ordner
-    `AdGuard-Backup/` auf dem Stick
-  - **von USB-Stick wiederherstellen**
-  - **Version zum Download bereitlegen** (für WinSCP/`scp`)
+  1. **jetzt sichern**
+  2. **Version wiederherstellen**: Der aktuelle Stand wird vorher gesichert;
+     startet AdGuard mit der alten Version nicht, wird automatisch zurückgerollt.
+  3. **auf USB-Stick kopieren**: eine Version oder alle (Enter), in den Ordner
+     `AdGuard-Backup/` auf dem Stick
+  4. **von USB-Stick wiederherstellen**
+  5. **Version zum Download bereitlegen** (für WinSCP/`scp`)
 
   USB-Sticks mit FAT32, exFAT, NTFS oder ext4 werden erkannt. Bei mehreren
   Sticks wird gefragt. Der Stick ist nur während des Kopierens eingehängt (schützt
@@ -393,14 +393,14 @@ nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo adguard-setup` änd
   abgezogen werden.
 
   **Stick dauerhaft stecken lassen:** Gibt es auf einem eingesteckten Stick den
-  Ordner `AdGuard-Backup/` (entsteht beim ersten **(u)**), kopiert die tägliche
+  Ordner `AdGuard-Backup/` (entsteht beim ersten Kopieren mit Menüpunkt **3**), kopiert die tägliche
   Sicherung jede neue Version automatisch mit darauf. Auf dem Stick bleiben die
   letzten 30 Versionen.
 
   **Zusätzlich ab und zu eine Kopie außerhalb des Geräts aufbewahren.** Die
   automatischen Sicherungen liegen auf derselben eMMC und helfen nicht, wenn sie
   kaputtgeht. Am einfachsten: USB-Stick einstecken, `sudo adguard-backup` →
-  **(u)** → **(a)** für alle. Alternativ per „Download bereitlegen“ und
+  **3** → **Enter** für alle. Alternativ per „Download bereitlegen“ und
   [WinSCP](https://winscp.net) (grafisch, Anmeldung wie bei SSH) oder PowerShell:
   ```powershell
   scp "adguard@<IP>:AdGuardHome-*.yaml" .

@@ -279,12 +279,12 @@ copy_into_usb_dir() {
 
 copy_to_usb() {
     if (( ${#BACKUPS[@]} == 0 )); then
-        warn "Noch keine Sicherungen vorhanden – zuerst (s) jetzt sichern."
+        warn "Noch keine Sicherungen vorhanden – zuerst 1) jetzt sichern."
         return 0
     fi
     local sel files=()
-    read -rp "Nummer der Version oder (a) für alle: " sel
-    if [[ ${sel,,} == a* ]]; then
+    read -rp "Nummer der Version (Enter = alle): " sel
+    if [[ -z $sel ]]; then
         files=("${BACKUPS[@]}")
     elif [[ $sel =~ ^[0-9]+$ ]] && (( sel >= 1 && sel <= ${#BACKUPS[@]} )); then
         files=("${BACKUPS[$((sel - 1))]}")
@@ -340,7 +340,7 @@ restore_from_usb() {
 
 # Für --auto: neueste Sicherung und Systemeinstellungen auf jeden eingesteckten
 # Stick kopieren, auf dem es den Ordner AdGuard-Backup/ gibt (entsteht beim
-# ersten Kopieren mit (u)). Ohne Rückfragen.
+# ersten Kopieren mit Menüpunkt 3). Ohne Rückfragen.
 auto_copy_to_usb() {
     local newest="$1" p dir
     while IFS= read -r p; do
@@ -423,18 +423,20 @@ while true; do
     info "AdGuard-Einstellungen – Sicherungen ($BACKUP_DIR, es werden die letzten $KEEP behalten)"
     show_list
     echo
-    echo "  (s) jetzt sichern            (w) Version wiederherstellen"
-    echo "  (u) auf USB-Stick kopieren   (v) von USB-Stick wiederherstellen"
-    echo "  (d) Version zum Download bereitlegen (WinSCP/scp)"
-    echo "  (q) beenden"
-    read -rp "Auswahl: " choice
-    case "${choice,,}" in
-        s) backup_now || true ;;
-        w) (( ${#BACKUPS[@]} )) && restore ;;
-        u) copy_to_usb ;;
-        v) restore_from_usb ;;
-        d) (( ${#BACKUPS[@]} )) && export_for_download ;;
-        q|"") exit 0 ;;
-        *) warn "Unbekannte Auswahl." ;;
+    echo "  1) jetzt sichern"
+    echo "  2) Version wiederherstellen"
+    echo "  3) auf USB-Stick kopieren"
+    echo "  4) von USB-Stick wiederherstellen"
+    echo "  5) Version zum Download bereitlegen (WinSCP/scp)"
+    echo "  0) beenden"
+    read -rp "Auswahl [0]: " choice
+    case "$choice" in
+        1) backup_now || true ;;
+        2) (( ${#BACKUPS[@]} )) && restore ;;
+        3) copy_to_usb ;;
+        4) restore_from_usb ;;
+        5) (( ${#BACKUPS[@]} )) && export_for_download ;;
+        0|"") exit 0 ;;
+        *) warn "Bitte eine Zahl von 0 bis 5 eingeben." ;;
     esac
 done
