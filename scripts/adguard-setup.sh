@@ -5,11 +5,16 @@
 # Aufruf:                         sudo adguard-setup
 #
 # Schritte (jeder einzeln überspringbar):
+#   0. nur beim ersten Lauf: Backup von USB-Stick übernehmen (AdGuard und/oder
+#      diese Einstellungen als Vorschlagswerte)
 #   1. Hostname setzen
 #   2. Linux-Passwort ändern
 #   3. Automatischer Neustart: täglich/wöchentlich, Uhrzeit (auch für Updates)
 #   4. Web-Verwaltung Cockpit installieren (optional)
 #   5. Netzwerk: DHCP oder feste IP
+#
+# Die gewählten Einstellungen landen in /etc/adguard-setup.conf und werden von
+# adguard-backup mitgesichert.
 #
 # Die AdGuard-Einrichtung (Admin-Benutzer, Upstreams, Filter) erfolgt über
 # den Setup-Assistenten im Webinterface (Port 3000) und nicht hier.
@@ -17,8 +22,15 @@ set -euo pipefail
 
 STATE_DIR="/var/lib/adguard-setup"
 DONE_FILE="$STATE_DIR/setup.done"
+SETUP_CONF="/etc/adguard-setup.conf"
+ADGUARD_BACKUP="/usr/local/sbin/adguard-backup"
 
 NEED_REBOOT=0
+
+# Vorschlagswerte aus einem Backup (leer = normale Standardwerte)
+declare -A PRESET=()
+# Netzwerk-Einstellung, falls in diesem Lauf geändert (sonst wird der Ist-Zustand gespeichert)
+NET_MODE="" NET_ADDR="" NET_GW="" NET_DNS1="" NET_DNS2=""
 
 # ---------------------------------------------------------------- Hilfsfunktionen
 
@@ -62,16 +74,137 @@ ask_ipv4() {   # ask_ipv4 "Frage" "Default"
     done
 }
 
+# ---------------------------------------------------------------- Einstellungsdatei
+
+# Liest KEY=WERT-Zeilen als Vorschlagswerte. Wird bewusst NICHT als Shell-Code
+# ausgeführt (die Datei kann von einem USB-Stick stammen); nur bekannte Schlüssel
+# und harmlose Zeichen werden übernommen.
+load_presets() {
+    local k v
+    while IFS='=' read -r k v; do
+        case "$k" in
+            HOSTNAME|REBOOT_TIME|REBOOT_MODE|REBOOT_DAY|COCKPIT|NET_MODE|NET_ADDR|NET_GW|NET_DNS1|NET_DNS2)
+                [[ $v =~ ^[A-Za-z0-9.:/_-]*$ ]] && PRESET[$k]="$v" ;;
+        esac
+    done < "$1"
+}
+
+# Aktuelle Uhrzeit für Neustarts (aus der apt-Einstellung), sonst 04:00
+current_reboot_time() {
+    local t=""
+    [[ -f $APT_REBOOT_CONF ]] && t="$(grep -oE '[0-9]{2}:[0-9]{2}' "$APT_REBOOT_CONF" | head -n1 || true)"
+    echo "${t:-04:00}"
+}
+
+# Netzwerk-Ist-Zustand in NET_* übernehmen (wenn in diesem Lauf nichts geändert wurde)
+detect_network_state() {
+    local iface
+    iface="$(detect_iface)"
+    if ip -4 -o addr show dev "$iface" 2>/dev/null | grep -q dynamic; then
+        NET_MODE=dhcp
+    else
+        NET_MODE=static
+        NET_ADDR="$(ip -4 -o addr show dev "$iface" 2>/dev/null | awk '{print $4; exit}')"
+        NET_GW="$(ip -4 route show default 2>/dev/null | awk '{print $3; exit}')"
+        NET_DNS1="$(awk '/^nameserver [0-9.]+$/ {print $2}' /etc/resolv.conf 2>/dev/null | sed -n 1p)"
+        NET_DNS2="$(awk '/^nameserver [0-9.]+$/ {print $2}' /etc/resolv.conf 2>/dev/null | sed -n 2p)"
+    fi
+}
+
+# Schreibt die aktuellen Einstellungen nach /etc/adguard-setup.conf
+save_settings() {
+    local reboot_mode=none reboot_day="" cal cockpit=no
+    if systemctl is-enabled --quiet adguard-reboot.timer 2>/dev/null && [[ -f $REBOOT_TIMER ]]; then
+        cal="$(sed -n 's/^OnCalendar=//p' "$REBOOT_TIMER")"
+        if [[ $cal == '*-*-*'* ]]; then
+            reboot_mode=daily
+        else
+            reboot_mode=weekly
+            reboot_day="${cal%% *}"
+        fi
+    fi
+    dpkg -s cockpit-ws &>/dev/null && cockpit=yes
+    [[ -n $NET_MODE ]] || detect_network_state
+
+    {
+        echo "# adguard-setup – gewählte Einstellungen (wird von adguard-backup mitgesichert)"
+        echo "# Stand: $(date '+%d.%m.%Y %H:%M')"
+        echo "HOSTNAME=$(hostname)"
+        echo "REBOOT_TIME=$(current_reboot_time)"
+        echo "REBOOT_MODE=$reboot_mode"
+        echo "REBOOT_DAY=$reboot_day"
+        echo "COCKPIT=$cockpit"
+        echo "NET_MODE=$NET_MODE"
+        echo "NET_ADDR=$NET_ADDR"
+        echo "NET_GW=$NET_GW"
+        echo "NET_DNS1=$NET_DNS1"
+        echo "NET_DNS2=$NET_DNS2"
+    } > "$SETUP_CONF"
+}
+
+# ---------------------------------------------------------------- 0. Backup übernehmen
+
+step_restore() {
+    # Nur bei der allerersten Einrichtung anbieten (später: sudo adguard-backup)
+    [[ -f $DONE_FILE ]] && return 0
+    [[ -x $ADGUARD_BACKUP ]] || return 0
+
+    local dir choice
+    dir="$(mktemp -d)"
+    if ! "$ADGUARD_BACKUP" --fetch-usb "$dir" >/dev/null 2>&1; then
+        rm -rf "$dir"
+        return 0          # kein Stick mit Backup – normal weiter
+    fi
+
+    info "Backup auf USB-Stick gefunden"
+    echo "Gefunden: $(cat "$dir/source.txt")"
+    echo
+    echo "  1) AdGuard + Systemeinstellungen übernehmen (empfohlen)"
+    echo "  2) nur AdGuard übernehmen"
+    echo "  3) nichts übernehmen, neu einrichten"
+    choice="$(ask "Auswahl" "1")"
+
+    case "$choice" in
+        1|2)
+            if "$ADGUARD_BACKUP" --restore-file "$dir/AdGuardHome.yaml"; then
+                echo "AdGuard-Einstellungen übernommen – der Einrichtungsassistent ist nicht mehr nötig."
+            else
+                warn "AdGuard-Einstellungen konnten nicht übernommen werden."
+            fi
+            if [[ $choice == 1 ]]; then
+                if [[ -f $dir/adguard-setup.conf ]]; then
+                    load_presets "$dir/adguard-setup.conf"
+                    echo
+                    echo "Die folgenden Fragen sind mit den Werten aus dem Backup vorausgefüllt."
+                    echo "Einfach mit Enter bestätigen oder bei Bedarf ändern."
+                else
+                    warn "Im Backup sind keine Systemeinstellungen enthalten – bitte normal einrichten."
+                fi
+            fi
+            ;;
+        *)
+            echo "Es wird nichts übernommen."
+            ;;
+    esac
+    rm -rf "$dir"
+}
+
 # ---------------------------------------------------------------- 1. Hostname
 
 step_hostname() {
     info "Hostname"
-    local current new
+    local current new def=n suggestion
     current="$(hostname)"
+    suggestion="$current"
     echo "Aktueller Hostname: $current"
-    yesno "Hostname ändern?" n || return 0
+    if [[ -n ${PRESET[HOSTNAME]:-} && ${PRESET[HOSTNAME]} != "$current" ]]; then
+        echo "Aus dem Backup:     ${PRESET[HOSTNAME]}"
+        def=j
+        suggestion="${PRESET[HOSTNAME]}"
+    fi
+    yesno "Hostname ändern?" "$def" || return 0
 
-    new="$(ask "Neuer Hostname" "$current")"
+    new="$(ask "Neuer Hostname" "$suggestion")"
     if [[ ! $new =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]]; then
         warn "Ungültiger Hostname – übersprungen."
         return 0
@@ -111,6 +244,14 @@ APT_REBOOT_CONF="/etc/apt/apt.conf.d/53adguard-reboot-time"
 step_reboot() {
     info "Automatischer Neustart"
     local time freq day day_en desc
+    local def_time def_regular=j def_freq=w def_day=So
+    def_time="${PRESET[REBOOT_TIME]:-$(current_reboot_time)}"
+    [[ ${PRESET[REBOOT_MODE]:-} == none ]] && def_regular=n
+    [[ ${PRESET[REBOOT_MODE]:-} == daily ]] && def_freq=t
+    case "${PRESET[REBOOT_DAY]:-}" in
+        Mon) def_day=Mo ;; Tue) def_day=Di ;; Wed) def_day=Mi ;; Thu) def_day=Do ;;
+        Fri) def_day=Fr ;; Sat) def_day=Sa ;; Sun) def_day=So ;;
+    esac
 
     if systemctl is-enabled --quiet adguard-reboot.timer 2>/dev/null; then
         echo "Aktuell: $(systemctl show -p Description --value adguard-reboot.timer)"
@@ -124,13 +265,13 @@ step_reboot() {
     echo
 
     while true; do
-        time="$(ask "Uhrzeit für Neustarts (HH:MM)" "04:00")"
+        time="$(ask "Uhrzeit für Neustarts (HH:MM)" "$def_time")"
         [[ $time =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] && break
         warn "Bitte im Format HH:MM angeben, z.B. 04:00."
     done
     printf '// erzeugt von adguard-setup\nUnattended-Upgrade::Automatic-Reboot-Time "%s";\n' "$time" > "$APT_REBOOT_CONF"
 
-    if ! yesno "Regelmäßigen Neustart einrichten? (empfohlen)" j; then
+    if ! yesno "Regelmäßigen Neustart einrichten? (empfohlen)" "$def_regular"; then
         if [[ -f $REBOOT_TIMER ]]; then
             systemctl disable --now adguard-reboot.timer 2>/dev/null || true
             rm -f "$REBOOT_TIMER" "$REBOOT_SERVICE"
@@ -140,13 +281,13 @@ step_reboot() {
         return 0
     fi
 
-    freq="$(ask "(w)öchentlich oder (t)äglich" "w")"
+    freq="$(ask "(w)öchentlich oder (t)äglich" "$def_freq")"
     if [[ ${freq,,} == t* ]]; then
         day_en="*-*-*"
         desc="täglich um $time Uhr"
     else
         while true; do
-            day="$(ask "Wochentag (Mo, Di, Mi, Do, Fr, Sa, So)" "So")"
+            day="$(ask "Wochentag (Mo, Di, Mi, Do, Fr, Sa, So)" "$def_day")"
             case "${day,,}" in
                 mo*) day_en=Mon; day=Montag ;;
                 di*) day_en=Tue; day=Dienstag ;;
@@ -202,7 +343,12 @@ step_cockpit() {
     fi
     echo "Cockpit ist eine Weboberfläche für die Linux-Verwaltung: Terminal im"
     echo "Browser, Updates, Logs, Dienste, Neustart. Adresse danach: https://$ip:9090"
-    yesno "Cockpit installieren?" n || return 0
+    local def=n
+    if [[ ${PRESET[COCKPIT]:-} == yes ]]; then
+        echo "Laut Backup war Cockpit installiert."
+        def=j
+    fi
+    yesno "Cockpit installieren?" "$def" || return 0
 
     # --no-install-recommends: sonst würde u.a. NetworkManager mitinstalliert und
     # die Netzwerkkonfiguration übernehmen.
@@ -268,7 +414,20 @@ step_network() {
     echo "feste DHCP-Adresse reservieren (dann DHCP behalten)."
     echo
 
-    mode="$(ask "(d)HCP verwenden, (s)tatische IP vergeben oder (u)nverändert lassen" "u")"
+    local def_mode=u
+    case "${PRESET[NET_MODE]:-}" in
+        static)
+            def_mode=s
+            echo "Aus dem Backup: feste IP ${PRESET[NET_ADDR]:-?}, Gateway ${PRESET[NET_GW]:-?}"
+            warn "Diese Adresse darf im Netz nicht schon vergeben sein (z.B. durch das alte Gerät)."
+            echo ;;
+        dhcp)
+            def_mode=d
+            echo "Aus dem Backup: DHCP"
+            echo ;;
+    esac
+
+    mode="$(ask "(d)HCP verwenden, (s)tatische IP vergeben oder (u)nverändert lassen" "$def_mode")"
     case "${mode,,}" in
         s*) mode=static ;;
         d*) mode=dhcp
@@ -280,15 +439,16 @@ step_network() {
     if [[ $mode == static ]]; then
         mode=static
         while true; do
-            addr="$(ask "IP-Adresse mit Präfix (z.B. 192.168.1.53/24)" "${cur:-192.168.1.53/24}")"
+            addr="$(ask "IP-Adresse mit Präfix (z.B. 192.168.1.53/24)" "${PRESET[NET_ADDR]:-${cur:-192.168.1.53/24}}")"
             valid_cidr "$addr" && break
             warn "Bitte im Format a.b.c.d/nn angeben."
         done
-        gw="$(ask_ipv4 "Gateway (Router)" "$(ip -4 route show default | awk '{print $3; exit}')")"
+        gw="$(ask_ipv4 "Gateway (Router)" "${PRESET[NET_GW]:-$(ip -4 route show default | awk '{print $3; exit}')}")"
         # Das Gerät selbst nicht über den eigenen AdGuard auflösen lassen – sonst
         # gehen Updates nicht, wenn AdGuard mal hängt.
-        dns1="$(ask_ipv4 "DNS-Server für das Gerät selbst" "$gw")"
-        dns2="$(ask "Zweiter DNS-Server (leer = keiner)" "9.9.9.9")"
+        dns1="$(ask_ipv4 "DNS-Server für das Gerät selbst" "${PRESET[NET_DNS1]:-$gw}")"
+        # "-" statt ":-": ein im Backup bewusst leerer zweiter DNS bleibt leer
+        dns2="$(ask "Zweiter DNS-Server (leer = keiner)" "${PRESET[NET_DNS2]-9.9.9.9}")"
         if [[ -n $dns2 ]] && ! valid_ipv4 "$dns2"; then
             warn "Ungültiger zweiter DNS – wird ignoriert."
             dns2=""
@@ -354,6 +514,9 @@ step_network() {
             ;;
     esac
 
+    # Für /etc/adguard-setup.conf merken (gilt erst nach dem Neustart)
+    NET_MODE="$mode" NET_ADDR="${addr:-}" NET_GW="${gw:-}" NET_DNS1="${dns1:-}" NET_DNS2="${dns2:-}"
+
     echo "Netzwerk konfiguriert. Wird nach dem Neustart aktiv."
     [[ $mode == static ]] && echo "AdGuard ist dann erreichbar unter: http://${addr%/*}/"
     NEED_REBOOT=1
@@ -374,11 +537,16 @@ main() {
         echo "Zuletzt ausgeführt: $(cat "$DONE_FILE")"
     fi
 
+    step_restore
     step_hostname
     step_linux_password
     step_reboot
     step_cockpit
     step_network
+
+    save_settings
+    # Einstellungen gleich mitsichern (sonst erst in der nächsten Nacht)
+    [[ -x $ADGUARD_BACKUP ]] && "$ADGUARD_BACKUP" --auto >/dev/null 2>&1 || true
 
     mkdir -p "$STATE_DIR"
     date '+%Y-%m-%d %H:%M' > "$DONE_FILE"

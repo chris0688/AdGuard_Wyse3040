@@ -11,17 +11,28 @@
 #                                und kopiert die neueste Version auf eingesteckte USB-Sticks
 #                                mit Ordner AdGuard-Backup/
 #
-# Behalten werden die letzten KEEP Versionen in BACKUP_DIR.
+# Intern (von adguard-setup genutzt):
+#   adguard-backup --fetch-usb DIR     neueste Sicherung von einem USB-Stick nach DIR holen
+#   adguard-backup --restore-file DATEI  ohne Rückfrage wiederherstellen
+#
+# Gesichert werden:
+#   AdGuardHome-<datum>.yaml   AdGuard-Einstellungen, die letzten KEEP Versionen
+#   adguard-setup.conf         Einstellungen aus adguard-setup (nur der aktuelle Stand)
 set -euo pipefail
 
 AGH_CONF="/opt/AdGuardHome/AdGuardHome.yaml"
 AGH_SERVICE="AdGuardHome"
+SETUP_CONF="/etc/adguard-setup.conf"
 BACKUP_DIR="/var/backups/adguard"
 KEEP=7
+USB_DIR_NAME="AdGuard-Backup"
+USB_KEEP=30
 
 info() { printf '\033[1;34m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m[!] %s\033[0m\n' "$*"; }
 err()  { printf '\033[1;31m[x] %s\033[0m\n' "$*" >&2; }
+
+# ---------------------------------------------------------------- Sichern
 
 # Backups, neueste zuerst
 list_backups() {
@@ -31,6 +42,7 @@ list_backups() {
 # Sichert die aktuelle Konfiguration, wenn sie sich von der neuesten Sicherung
 # unterscheidet. Rückgabe 0 = neue Sicherung angelegt, 1 = nichts zu tun.
 backup_now() {
+    backup_setup_conf
     if [[ ! -f $AGH_CONF ]]; then
         echo "AdGuard ist noch nicht eingerichtet – nichts zu sichern."
         return 1
@@ -55,11 +67,35 @@ backup_now() {
     return 0
 }
 
+# Einstellungen aus adguard-setup sichern (nur der aktuelle Stand, ändert sich selten)
+backup_setup_conf() {
+    [[ -f $SETUP_CONF ]] || return 0
+    mkdir -p "$BACKUP_DIR"
+    chmod 700 "$BACKUP_DIR"
+    if ! cmp -s "$SETUP_CONF" "$BACKUP_DIR/adguard-setup.conf"; then
+        install -m 600 "$SETUP_CONF" "$BACKUP_DIR/adguard-setup.conf"
+        echo "Systemeinstellungen (adguard-setup) gesichert."
+    fi
+}
+
+# ---------------------------------------------------------------- Anzeige / Auswahl
+
 # "AdGuardHome-2026-10-18_033000.yaml" -> "18.10.2026 03:30"
 pretty_date() {
-    local n="${1##*/AdGuardHome-}"
+    local n="${1##*AdGuardHome-}"
     n="${n%.yaml}"
     echo "${n:8:2}.${n:5:2}.${n:0:4} ${n:11:2}:${n:13:2}"
+}
+
+# Anzeigename einer Sicherungsdatei (auch für umbenannte Dateien auf dem Stick)
+describe_file() {
+    local b
+    b="$(basename "$1")"
+    if [[ $b =~ ^AdGuardHome-[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}\.yaml$ ]]; then
+        pretty_date "$1"
+    else
+        echo "$b  (geändert $(date -r "$1" '+%d.%m.%Y %H:%M'))"
+    fi
 }
 
 show_list() {
@@ -74,6 +110,8 @@ show_list() {
         printf '  %d)  %s   %6s\n' "$i" "$(pretty_date "$f")" "$(du -h "$f" | cut -f1)"
         i=$((i + 1))
     done
+    [[ -f $BACKUP_DIR/adguard-setup.conf ]] && echo "  + Systemeinstellungen (adguard-setup)"
+    return 0
 }
 
 choose_backup() {   # Ergebnis in CHOSEN
@@ -86,17 +124,27 @@ choose_backup() {   # Ergebnis in CHOSEN
     CHOSEN="${BACKUPS[$((nr - 1))]}"
 }
 
+# ---------------------------------------------------------------- Wiederherstellen
+
 restore() {
     choose_backup || return 0
-    restore_file "$CHOSEN" "$(pretty_date "$CHOSEN")"
+    restore_file "$CHOSEN" "$(pretty_date "$CHOSEN")" || true
 }
 
-# restore_file <datei> <anzeigename> – spielt eine Konfiguration ein
+# restore_file <datei> <anzeigename> [--yes] – spielt eine Konfiguration ein.
+# Rückgabe 0 = AdGuard läuft mit der neuen Konfiguration.
 restore_file() {
     local file="$1" a
-    echo "Wiederherstellen: $2"
-    read -rp "AdGuard wird kurz neu gestartet. Fortfahren? [j/N]: " a
-    [[ ${a,,} == j* ]] || { echo "Abgebrochen."; return 0; }
+    if [[ ${3:-} != --yes ]]; then
+        echo "Wiederherstellen: $2"
+        read -rp "AdGuard wird kurz neu gestartet. Fortfahren? [j/N]: " a
+        [[ ${a,,} == j* ]] || { echo "Abgebrochen."; return 0; }
+    fi
+
+    if ! grep -q '^dns:' "$file"; then
+        err "Das sieht nicht nach einer AdGuard-Konfiguration aus – abgebrochen."
+        return 1
+    fi
 
     # Aktuellen Stand vorher sichern, damit man auch zurück kann
     backup_now >/dev/null || true
@@ -107,18 +155,20 @@ restore_file() {
     sleep 3
     if systemctl is-active --quiet "$AGH_SERVICE"; then
         info "Wiederhergestellt. AdGuard läuft."
-    else
-        local previous
-        previous="$(list_backups | head -n1)"
-        if [[ -n $previous ]]; then
-            err "AdGuard startet mit dieser Version nicht – stelle vorherigen Stand wieder her."
-            systemctl stop "$AGH_SERVICE" || true
-            install -m 600 "$previous" "$AGH_CONF"
-            systemctl start "$AGH_SERVICE" || true
-        else
-            err "AdGuard startet mit dieser Version nicht. Details: journalctl -u $AGH_SERVICE"
-        fi
+        return 0
     fi
+
+    local previous
+    previous="$(list_backups | head -n1)"
+    if [[ -n $previous ]]; then
+        err "AdGuard startet mit dieser Version nicht – stelle vorherigen Stand wieder her."
+        systemctl stop "$AGH_SERVICE" || true
+        install -m 600 "$previous" "$AGH_CONF"
+        systemctl start "$AGH_SERVICE" || true
+    else
+        err "AdGuard startet mit dieser Version nicht. Details: journalctl -u $AGH_SERVICE"
+    fi
+    return 1
 }
 
 export_for_download() {
@@ -138,12 +188,7 @@ export_for_download() {
     echo "Danach auf dem Gerät wieder löschen: rm ~/$(basename "$target")"
 }
 
-# ---------------------------------------------------------------- USB-Stick
-
-USB_DIR_NAME="AdGuard-Backup"
-USB_DEV=""
-USB_MNT=""
-USB_MOUNTED_BY_US=0
+# ---------------------------------------------------------------- USB-Stick: Grundlagen
 
 # Listet Partitionen auf USB-Laufwerken mit lesbarem Dateisystem:
 # "GERÄT|Beschreibung" pro Zeile
@@ -162,7 +207,35 @@ find_usb_partitions() {
     done < <(lsblk -Ppno NAME,PKNAME,TYPE,FSTYPE,SIZE,LABEL)
 }
 
-# Setzt USB_DEV; fragt nach, wenn mehrere Sticks stecken
+# mount_dev <gerät> – hängt ein (falls nötig) und setzt MNT und MOUNTED_BY_US.
+# Der Stick ist nur so lange eingehängt wie nötig (schützt vor Datenverlust
+# bei Stromausfall).
+mount_dev() {
+    MNT="$(findmnt -nro TARGET -S "$1" 2>/dev/null | head -n1 || true)"
+    MOUNTED_BY_US=0
+    [[ -n $MNT ]] && return 0
+    MNT="$(mktemp -d /mnt/adguard-usb.XXXX)"
+    if ! mount -o nosuid,nodev,noexec "$1" "$MNT" 2>/dev/null \
+       && ! mount -t ntfs3 -o nosuid,nodev,noexec "$1" "$MNT" 2>/dev/null; then
+        rmdir "$MNT"
+        return 1
+    fi
+    MOUNTED_BY_US=1
+}
+
+# umount_dev [leise] – hängt wieder aus, wenn wir eingehängt haben
+umount_dev() {
+    sync
+    (( MOUNTED_BY_US )) || return 0
+    if umount "$MNT"; then
+        rmdir "$MNT" || true
+        [[ ${1:-} == leise ]] || echo "USB-Stick ausgehängt – er kann stecken bleiben oder gefahrlos abgezogen werden."
+    else
+        warn "USB-Stick konnte nicht ausgehängt werden – vor dem Abziehen: sudo umount $MNT"
+    fi
+}
+
+# Fragt nach, wenn mehrere Sticks stecken; setzt USB_DEV
 select_usb() {
     local parts p nr i=1
     mapfile -t parts < <(find_usb_partitions)
@@ -190,39 +263,26 @@ select_usb() {
 
 mount_usb() {
     select_usb || return 1
-    USB_MNT="$(findmnt -nro TARGET -S "$USB_DEV" 2>/dev/null | head -n1 || true)"
-    if [[ -n $USB_MNT ]]; then
-        USB_MOUNTED_BY_US=0          # war schon eingehängt
-        return 0
-    fi
-    USB_MNT="$(mktemp -d /mnt/adguard-usb.XXXX)"
-    if ! mount -o nosuid,nodev,noexec "$USB_DEV" "$USB_MNT" 2>/dev/null \
-       && ! mount -t ntfs3 -o nosuid,nodev,noexec "$USB_DEV" "$USB_MNT" 2>/dev/null; then
+    if ! mount_dev "$USB_DEV"; then
         err "USB-Stick konnte nicht eingebunden werden."
-        rmdir "$USB_MNT"
         return 1
     fi
-    USB_MOUNTED_BY_US=1
 }
 
-umount_usb() {
-    sync
-    if (( USB_MOUNTED_BY_US )); then
-        if umount "$USB_MNT"; then
-            rmdir "$USB_MNT" || true
-            echo "USB-Stick ausgehängt – er kann stecken bleiben oder gefahrlos abgezogen werden."
-        else
-            warn "USB-Stick konnte nicht ausgehängt werden – vor dem Abziehen: sudo umount $USB_MNT"
-        fi
-    fi
+# Kopiert Dateien ins Backup-Verzeichnis des eingehängten Sticks.
+# --preserve=timestamps: Reihenfolge nach Datum bleibt erhalten (auch auf FAT32).
+copy_into_usb_dir() {
+    mkdir -p "$MNT/$USB_DIR_NAME" && cp --preserve=timestamps "$@" "$MNT/$USB_DIR_NAME/"
 }
+
+# ---------------------------------------------------------------- USB-Stick: Menüpunkte
 
 copy_to_usb() {
     if (( ${#BACKUPS[@]} == 0 )); then
         warn "Noch keine Sicherungen vorhanden – zuerst (s) jetzt sichern."
         return 0
     fi
-    local sel f files=()
+    local sel files=()
     read -rp "Nummer der Version oder (a) für alle: " sel
     if [[ ${sel,,} == a* ]]; then
         files=("${BACKUPS[@]}")
@@ -232,72 +292,26 @@ copy_to_usb() {
         warn "Ungültige Auswahl."
         return 0
     fi
+    [[ -f $BACKUP_DIR/adguard-setup.conf ]] && files+=("$BACKUP_DIR/adguard-setup.conf")
 
     mount_usb || return 0
-    if mkdir -p "$USB_MNT/$USB_DIR_NAME" && cp "${files[@]}" "$USB_MNT/$USB_DIR_NAME/"; then
-        info "${#files[@]} Version(en) auf den USB-Stick kopiert (Ordner $USB_DIR_NAME)."
+    if copy_into_usb_dir "${files[@]}"; then
+        info "Auf den USB-Stick kopiert (Ordner $USB_DIR_NAME)."
         echo "Bleibt der Stick stecken, wird jede neue Sicherung automatisch mit draufkopiert."
     else
         err "Kopieren fehlgeschlagen (Stick voll oder schreibgeschützt?)."
     fi
-    umount_usb
-}
-
-# Für --auto: die neueste Sicherung auf jeden eingesteckten USB-Stick kopieren,
-# auf dem es den Ordner AdGuard-Backup/ gibt (entsteht beim ersten Kopieren mit (u)).
-# Ohne Rückfragen; der Stick ist nur während des Kopierens eingehängt.
-USB_KEEP=30
-auto_copy_to_usb() {
-    local newest="$1" p dev mnt mounted
-    while IFS= read -r p; do
-        dev="${p%%|*}"
-        mnt="$(findmnt -nro TARGET -S "$dev" 2>/dev/null | head -n1 || true)"
-        mounted=0
-        if [[ -z $mnt ]]; then
-            mnt="$(mktemp -d /mnt/adguard-usb.XXXX)"
-            if ! mount -o nosuid,nodev,noexec "$dev" "$mnt" 2>/dev/null \
-               && ! mount -t ntfs3 -o nosuid,nodev,noexec "$dev" "$mnt" 2>/dev/null; then
-                rmdir "$mnt"
-                continue
-            fi
-            mounted=1
-        fi
-        if [[ -d $mnt/$USB_DIR_NAME && ! -f $mnt/$USB_DIR_NAME/$(basename "$newest") ]]; then
-            if cp "$newest" "$mnt/$USB_DIR_NAME/"; then
-                echo "Auch auf USB-Stick kopiert: ${p#*|}"
-                # Nur eigene Sicherungen aufräumen, selbst abgelegte Dateien bleiben
-                ls -1t "$mnt/$USB_DIR_NAME"/AdGuardHome-*.yaml 2>/dev/null \
-                    | tail -n +$((USB_KEEP + 1)) | xargs -r rm -f
-            else
-                echo "Kopieren auf USB-Stick fehlgeschlagen: ${p#*|}" >&2
-            fi
-        fi
-        sync
-        if (( mounted )); then
-            umount "$mnt" && rmdir "$mnt" || true
-        fi
-    done < <(find_usb_partitions)
-}
-
-# Anzeigename einer Sicherungsdatei (auch für umbenannte Dateien auf dem Stick)
-describe_file() {
-    local b
-    b="$(basename "$1")"
-    if [[ $b =~ ^AdGuardHome-[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}\.yaml$ ]]; then
-        pretty_date "$1"
-    else
-        echo "$b  (geändert $(date -r "$1" '+%d.%m.%Y %H:%M'))"
-    fi
+    umount_dev
 }
 
 restore_from_usb() {
     local files f nr i=1 chosen tmp desc
     mount_usb || return 0
     # Gesucht wird im Ordner AdGuard-Backup/ und direkt im Hauptverzeichnis des Sticks
-    mapfile -t files < <(ls -1t "$USB_MNT/$USB_DIR_NAME"/*.yaml "$USB_MNT"/AdGuardHome*.yaml 2>/dev/null || true)
+    mapfile -t files < <(ls -1t "$MNT/$USB_DIR_NAME"/*.yaml "$MNT"/AdGuardHome*.yaml 2>/dev/null || true)
     if (( ${#files[@]} == 0 )); then
         warn "Keine Sicherungen auf dem Stick gefunden (erwartet im Ordner $USB_DIR_NAME/)."
-        umount_usb
+        umount_dev
         return 0
     fi
     echo "Sicherungen auf dem USB-Stick (neueste zuerst):"
@@ -308,7 +322,7 @@ restore_from_usb() {
     read -rp "Nummer der Version: " nr
     if [[ ! $nr =~ ^[0-9]+$ ]] || (( nr < 1 || nr > ${#files[@]} )); then
         warn "Ungültige Nummer."
-        umount_usb
+        umount_dev
         return 0
     fi
     chosen="${files[$((nr - 1))]}"
@@ -317,15 +331,67 @@ restore_from_usb() {
     # Erst lokal zwischenspeichern, damit der Stick gleich wieder frei ist
     tmp="$(mktemp)"
     cp "$chosen" "$tmp"
-    umount_usb
-
-    if ! grep -q '^dns:' "$tmp"; then
-        err "Das sieht nicht nach einer AdGuard-Konfiguration aus – abgebrochen."
-        rm -f "$tmp"
-        return 0
-    fi
-    restore_file "$tmp" "$desc"
+    umount_dev
+    restore_file "$tmp" "$desc" || true
     rm -f "$tmp"
+}
+
+# ---------------------------------------------------------------- USB-Stick: automatisch
+
+# Für --auto: neueste Sicherung und Systemeinstellungen auf jeden eingesteckten
+# Stick kopieren, auf dem es den Ordner AdGuard-Backup/ gibt (entsteht beim
+# ersten Kopieren mit (u)). Ohne Rückfragen.
+auto_copy_to_usb() {
+    local newest="$1" p dir
+    while IFS= read -r p; do
+        mount_dev "${p%%|*}" || continue
+        dir="$MNT/$USB_DIR_NAME"
+        if [[ -d $dir ]]; then
+            if [[ -n $newest && ! -f $dir/$(basename "$newest") ]]; then
+                if copy_into_usb_dir "$newest"; then
+                    echo "Auch auf USB-Stick kopiert: ${p#*|}"
+                    # Nur eigene Sicherungen aufräumen, selbst abgelegte Dateien bleiben
+                    ls -1t "$dir"/AdGuardHome-*.yaml 2>/dev/null \
+                        | tail -n +$((USB_KEEP + 1)) | xargs -r rm -f
+                else
+                    echo "Kopieren auf USB-Stick fehlgeschlagen: ${p#*|}" >&2
+                fi
+            fi
+            if [[ -f $BACKUP_DIR/adguard-setup.conf ]] \
+               && ! cmp -s "$BACKUP_DIR/adguard-setup.conf" "$dir/adguard-setup.conf"; then
+                copy_into_usb_dir "$BACKUP_DIR/adguard-setup.conf" \
+                    && echo "Systemeinstellungen auf USB-Stick kopiert: ${p#*|}"
+            fi
+        fi
+        umount_dev leise
+    done < <(find_usb_partitions)
+}
+
+# Für --fetch-usb DIR (adguard-setup bei der Ersteinrichtung): sucht auf allen
+# Sticks die neueste Sicherung und legt sie mit den Systemeinstellungen nach DIR:
+#   DIR/AdGuardHome.yaml, DIR/adguard-setup.conf (falls vorhanden), DIR/source.txt
+# Rückgabe 1, wenn nichts gefunden wurde.
+fetch_from_usb() {
+    local target="$1" p newest best="" best_name=""
+    while IFS= read -r p; do
+        mount_dev "${p%%|*}" || continue
+        # Neueste nach Dateiname (enthält das Sicherungsdatum)
+        newest="$(ls -1 "$MNT/$USB_DIR_NAME"/AdGuardHome-*.yaml 2>/dev/null | sort | tail -n1 || true)"
+        if [[ -n $newest && $(basename "$newest") > $best_name ]]; then
+            best_name="$(basename "$newest")"
+            best="${p#*|}"
+            cp "$newest" "$target/AdGuardHome.yaml"
+            rm -f "$target/adguard-setup.conf"
+            [[ -f $MNT/$USB_DIR_NAME/adguard-setup.conf ]] \
+                && cp "$MNT/$USB_DIR_NAME/adguard-setup.conf" "$target/adguard-setup.conf"
+        fi
+        umount_dev leise
+    done < <(find_usb_partitions)
+
+    [[ -n $best_name ]] || return 1
+    local extra=""
+    [[ -f $target/adguard-setup.conf ]] && extra=" + Systemeinstellungen"
+    echo "Stand $(pretty_date "$best_name")$extra, USB-Stick $best" > "$target/source.txt"
 }
 
 # ---------------------------------------------------------------- main
@@ -335,14 +401,22 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-if [[ ${1:-} == --auto ]]; then
-    backup_now || true
-    newest="$(list_backups | head -n1)"
-    # Auch wenn sich nichts geändert hat: ein neu eingesteckter Stick bekommt so
-    # beim nächsten Lauf den aktuellen Stand.
-    [[ -n $newest ]] && auto_copy_to_usb "$newest"
-    exit 0
-fi
+case "${1:-}" in
+    --auto)
+        backup_now || true
+        # Auch ohne Änderungen: ein neu eingesteckter Stick bekommt so beim
+        # nächsten Lauf den aktuellen Stand.
+        auto_copy_to_usb "$(list_backups | head -n1)"
+        exit 0 ;;
+    --fetch-usb)
+        [[ -d ${2:-} ]] || { err "Aufruf: adguard-backup --fetch-usb VERZEICHNIS"; exit 2; }
+        fetch_from_usb "$2"
+        exit $? ;;
+    --restore-file)
+        [[ -f ${2:-} ]] || { err "Aufruf: adguard-backup --restore-file DATEI"; exit 2; }
+        restore_file "$2" "$2" --yes
+        exit $? ;;
+esac
 
 while true; do
     echo

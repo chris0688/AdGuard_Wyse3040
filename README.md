@@ -27,6 +27,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 - [Alternative: Debian selbst installieren](#alternative-debian-selbst-installieren)
 - [Grundeinrichtung: `adguard-setup`](#grundeinrichtung-adguard-setup)
 - [Konfiguration ändern](#konfiguration-ändern)
+- [Neues Gerät aus Backup aufsetzen](#neues-gerät-aus-backup-aufsetzen)
 - [Wartung & Troubleshooting](#wartung--troubleshooting)
 - [Tipps für den Betrieb](#tipps-für-den-betrieb)
 - [Hardware & BIOS](#hardware--bios)
@@ -102,7 +103,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 | Watchdog | startet das Gerät automatisch neu, falls sich das System komplett aufhängt (sofern ein Watchdog-Chip vorhanden ist, beim Wyse 3040 ja) | `rootfs/etc/systemd/system.conf.d/watchdog.conf` |
 | Paket-Cache | wird alle 7 Tage aufgeräumt | `rootfs/etc/apt/apt.conf.d/70autoclean` |
 | Uhrzeit | automatisch per NTP von `de.pool.ntp.org` (Rückfall: Debian-Pool); die Begrüßung warnt, falls nicht synchronisiert | `rootfs/etc/systemd/timesyncd.conf.d/adguard.conf` |
-| AdGuard-Backup | täglich 03:30 bei Änderungen, letzte 7 Versionen; Verwaltung, Wiederherstellung und USB-Stick mit `sudo adguard-backup` | `scripts/adguard-backup.sh`, `rootfs/etc/systemd/system/adguard-backup.*` |
+| AdGuard-Backup | täglich 03:30 bei Änderungen, letzte 7 Versionen, plus Systemeinstellungen aus `adguard-setup`; Verwaltung, Wiederherstellung und USB-Stick mit `sudo adguard-backup`; bei Neuinstallation automatisch angeboten | `scripts/adguard-backup.sh`, `rootfs/etc/systemd/system/adguard-backup.*` |
 | Firewall (ufw) | offen: 22/tcp (SSH), 53 (DNS), 80/tcp, 443, 3000/tcp (Setup-Assistent) | `scripts/install.sh` |
 | fail2ban | SSH: 5 Fehlversuche in 10 Min. → 15 Min. Sperre, Wiederholungstäter länger (bis 1 Woche) | `rootfs/etc/fail2ban/jail.local` |
 | zram-Swap | komprimierter Swap im RAM (50 %), schont die eMMC | `rootfs/etc/default/zramswap` |
@@ -234,11 +235,17 @@ Jeder Schritt lässt sich überspringen:
 
 | Schritt | Was passiert |
 |---------|--------------|
+| 0. Backup übernehmen | **nur beim ersten Lauf**, wenn ein USB-Stick mit Backup (Ordner `AdGuard-Backup/`) steckt: Auswahl **1)** AdGuard + Systemeinstellungen, **2)** nur AdGuard, **3)** nichts. Bei 1) sind die folgenden Fragen mit den gesicherten Werten **vorausgefüllt**, man bestätigt sie einfach mit Enter. Siehe [Neues Gerät aus Backup](#neues-gerät-aus-backup-aufsetzen). |
 | 1. Hostname | setzt den Hostnamen und passt `/etc/hosts` an (Standard: `adguard`) |
 | 2. Passwort | ändert das Passwort eines Linux-Benutzers |
 | 3. Neustart | **Uhrzeit** für Neustarts (Standard 04:00, gilt auch für Neustarts nach Updates) und **regelmäßiger Neustart** (empfohlen): täglich oder wöchentlich mit Wochentag (Standard Sonntag) |
 | 4. Cockpit | installiert auf Wunsch die [Web-Verwaltung](#web-verwaltung-cockpit) |
 | 5. Netzwerk | **DHCP behalten** oder **feste IP** mit Gateway und DNS vergeben. Erkennt `ifupdown` (Debian-Standard), `systemd-networkd` und NetworkManager. Wird nach einem Neustart aktiv. |
+
+Die gewählten Einstellungen merkt sich `adguard-setup` in `/etc/adguard-setup.conf`
+(Hostname, Neustart-Plan, Cockpit ja/nein, DHCP oder feste IP). Die Datei wird von
+[`adguard-backup`](#tipps-für-den-betrieb) mitgesichert. Das Linux-Passwort wird
+bewusst **nicht** gespeichert.
 
 Hinweise zum Netzwerk:
 
@@ -296,6 +303,32 @@ sudo find /etc -type f -printf '%TY-%Tm-%Td %TH:%TM  %p\n' | sort
 sudo find /etc -type f -newermt '2026-03-01 14:30' ! -newermt '2026-03-01 18:00'
 ```
 
+## Neues Gerät aus Backup aufsetzen
+
+Gerät defekt oder neu installiert? Mit einem USB-Stick, auf dem
+`adguard-backup` gesichert hat (Ordner `AdGuard-Backup/`), ist alles in wenigen
+Minuten wie vorher:
+
+1. Neu installieren wie im [Schnellstart](#schnellstart) (Schritte 1–5).
+2. Den **AdGuard-Einrichtungsassistenten nicht durchklicken**.
+3. USB-Stick mit dem Backup einstecken und anmelden. Nach der Passwortänderung
+   erscheint:
+   ```
+   Gefunden: Stand 19.10.2026 03:30 + Systemeinstellungen, USB-Stick HP_TOOLS (vfat, 959M)
+     1) AdGuard + Systemeinstellungen übernehmen (empfohlen)
+     2) nur AdGuard übernehmen
+     3) nichts übernehmen, neu einrichten
+   ```
+4. **1** wählen: AdGuard ist sofort wiederhergestellt (Filter, Regeln, Clients,
+   Admin-Zugang). Die folgenden Fragen (Hostname, Neustart-Plan, Cockpit, IP)
+   sind mit den alten Werten vorausgefüllt, einfach mit Enter bestätigen.
+
+> **Feste IP:** Läuft das alte Gerät noch, darf es nicht dieselbe IP haben.
+> Vorher ausschalten oder bei der Frage eine andere Adresse eintragen.
+
+Später lässt sich ein Backup jederzeit mit `sudo adguard-backup` → **(v)** vom
+Stick zurückspielen (nur AdGuard).
+
 ## Wartung & Troubleshooting
 
 | Aufgabe | Befehl |
@@ -339,7 +372,9 @@ nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo adguard-setup` änd
   (Filter, eigene Regeln, Clients, Admin-Zugang) stecken in einer Datei
   (`/opt/AdGuardHome/AdGuardHome.yaml`). Sie wird **täglich um 03:30 gesichert,
   wenn sie sich geändert hat**; die **letzten 7 Versionen** bleiben in
-  `/var/backups/adguard/`. Verwalten mit:
+  `/var/backups/adguard/`. Zusätzlich wird der aktuelle Stand der
+  **Systemeinstellungen** aus `adguard-setup` gesichert (`adguard-setup.conf`).
+  Verwalten mit:
   ```bash
   sudo adguard-backup
   ```
@@ -371,9 +406,8 @@ nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo adguard-setup` änd
   scp "adguard@<IP>:AdGuardHome-*.yaml" .
   ```
 
-  **Nach einer Neuinstallation wiederherstellen:** Den AdGuard-
-  Einrichtungsassistenten **nicht** durchklicken, sondern USB-Stick mit der
-  Sicherung einstecken und `sudo adguard-backup` → **(v)** wählen.
+  **Nach einer Neuinstallation wiederherstellen:** siehe
+  [Neues Gerät aus Backup aufsetzen](#neues-gerät-aus-backup-aufsetzen).
 
   Die Datei enthält den (verschlüsselten) Admin-Zugang, also sicher aufbewahren.
 - **Gerätenamen statt IP-Adressen im Dashboard:** In AdGuard unter
