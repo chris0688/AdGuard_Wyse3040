@@ -22,6 +22,12 @@ jobs:
 
       - name: ISO bauen
         run: |
+          # Projektversion für ISO-Name und Gerät: Tag (z.B. v0.5) bzw. dev-<commit>
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            export VERSION="$GITHUB_REF_NAME"
+          else
+            export VERSION="dev-${GITHUB_SHA::7}"
+          fi
           ./installer/build-iso.sh
           cd build
           ISO="$(ls adguard-wyse3040-*.iso)"

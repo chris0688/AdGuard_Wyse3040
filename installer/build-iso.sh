@@ -9,7 +9,10 @@
 #
 # Benötigt: Linux, WSL oder Docker mit  xorriso curl  (Debian: apt install xorriso curl)
 # Aufruf im Repo-Ordner:  ./installer/build-iso.sh
-# Ergebnis:               build/adguard-wyse3040-debian-<version>.iso
+# Ergebnis:               build/adguard-wyse3040-<projektversion>-debian-<version>.iso
+#
+# Projektversion: Umgebungsvariable VERSION (z.B. VERSION=v0.5), sonst aus
+# git (Tag, z.B. "v0.5" oder "v0.5-3-gabc1234" für Stände nach dem Tag), sonst "dev".
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -29,6 +32,10 @@ ISO_NAME="$(awk '/amd64-netinst\.iso$/ {print $2; exit}' SHA256SUMS)"
 [[ -n $ISO_NAME ]] || { echo "Keine Netinstall-ISO in SHA256SUMS gefunden." >&2; exit 1; }
 DEBIAN_VERSION="$(sed -E 's/debian-([0-9.]+)-.*/\1/' <<<"$ISO_NAME")"
 
+VERSION="${VERSION:-$(git -C "$REPO_DIR" describe --tags --always --dirty 2>/dev/null || echo dev)}"
+VERSION="$(tr -c 'A-Za-z0-9._-' '_' <<<"$VERSION" | sed 's/_$//')"   # sicher für Dateinamen
+echo "    Projektversion: $VERSION"
+
 if ! sha256sum --ignore-missing -c SHA256SUMS 2>/dev/null | grep -q "^$ISO_NAME: OK"; then
     echo "==> Lade $ISO_NAME ..."
     curl -fL --progress-bar -o "$ISO_NAME" "$MIRROR/$ISO_NAME"
@@ -45,8 +52,10 @@ cp -r "$REPO_DIR/rootfs" "$REPO_DIR/hardware" "$REPO_DIR/scripts" "$REPO_DIR/ins
 # Falls unter Windows ausgecheckt: Zeilenenden sicherheitshalber auf LF
 find "$STAGE" -type f -exec sed -i 's/\r$//' {} +
 chmod 755 "$STAGE"/adguard-setup/scripts/*.sh "$STAGE"/adguard-setup/rootfs/etc/update-motd.d/*
+# Version für das installierte Gerät (Anzeige in der Begrüßung)
+echo "$VERSION (Debian $DEBIAN_VERSION, gebaut $(date '+%d.%m.%Y'))" > "$STAGE/adguard-setup/VERSION"
 
-OUT_ISO="$BUILD_DIR/adguard-wyse3040-debian-$DEBIAN_VERSION.iso"
+OUT_ISO="$BUILD_DIR/adguard-wyse3040-$VERSION-debian-$DEBIAN_VERSION.iso"
 rm -f "$OUT_ISO"
 
 echo "==> Baue $(basename "$OUT_ISO") ..."

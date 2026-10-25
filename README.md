@@ -42,7 +42,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 **Du brauchst:** Dell Wyse 3040 mit Netzwerkkabel (Internet nötig), USB-Stick
 (≥ 1 GB), Tastatur und Monitor nur für die Installation.
 
-1. **ISO herunterladen** – die neueste `adguard-wyse3040-debian-13.x.iso` unter
+1. **ISO herunterladen** – die neueste ISO (z.B. `adguard-wyse3040-v0.6-debian-13.7.0.iso`) unter
    [**Releases**](../../releases/latest) (oder [selbst bauen](#usb-stick-iso-bauen)) –
    und auf einen USB-Stick bringen:
    - **[Ventoy](https://www.ventoy.net):** ISO einfach auf den Stick kopieren.
@@ -185,7 +185,7 @@ cd /mnt/c/Users/<name>/Documents/git/AdGuard_Wyse3040
 docker run --rm -v "${PWD}:/w" -w /w debian:13 bash -c "apt-get update -qq && apt-get install -y -qq xorriso curl && ./installer/build-iso.sh"
 ```
 
-Ergebnis: `build/adguard-wyse3040-debian-13.x.iso` (ca. 800 MB). Der Ordner
+Ergebnis: `build/adguard-wyse3040-<version>-debian-13.x.iso` (ca. 800 MB). Die Version stammt aus dem Git-Tag (z.B. `v0.6`). Der Ordner
 `build/` wird nicht eingecheckt.
 
 > Die ISO nach jeder Änderung am Repo neu bauen. Sie enthält immer den Stand,

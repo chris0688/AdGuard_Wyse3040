@@ -35,6 +35,8 @@ bar() {
 # ------------------------------------------------------------ Systemdaten
 HOSTNAME=$(hostname)
 MODEL=$(cat /sys/class/dmi/id/sys_vendor /sys/class/dmi/id/product_name 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')
+# Projektversion, mit der das Gerät installiert wurde (von build-iso.sh)
+SETUP_VERSION=$(head -n1 /opt/adguard-setup/VERSION 2>/dev/null)
 OS=$(. /etc/os-release && echo "$PRETTY_NAME")
 KERNEL=$(uname -r)
 UPTIME=$(uptime -p | sed 's/^up //; s/weeks\?/Wo./; s/days\?/Tg./; s/hours\?/Std./; s/minutes\?/Min./')
@@ -126,6 +128,7 @@ fi
 echo -e "$LINE"
 echo -e "  ${BLUE}Hostname:${NC}      ${CYAN}$HOSTNAME${NC}"
 [[ -n $MODEL ]] && echo -e "  ${BLUE}Gerät:${NC}         ${CYAN}$MODEL${NC}"
+[[ -n $SETUP_VERSION ]] && echo -e "  ${BLUE}Installiert:${NC}   ${CYAN}AdGuard-Wyse3040 $SETUP_VERSION${NC}"
 echo -e "  ${BLUE}System:${NC}        ${CYAN}$OS${NC} ${GRAY}(Kernel $KERNEL)${NC}"
 echo -e "  ${BLUE}Laufzeit:${NC}      ${CYAN}$UPTIME${NC}"
 echo -e "  ${BLUE}IPv4-Adresse:${NC}  ${CYAN}$IP_ADDR${NC}"
