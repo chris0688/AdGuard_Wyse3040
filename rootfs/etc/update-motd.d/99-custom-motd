@@ -59,7 +59,7 @@ if compgen -G "/sys/class/thermal/thermal_zone*/temp" >/dev/null; then
 fi
 
 # Regelmäßiger Neustart (eingerichtet mit adguard-setup)
-REBOOT_PLAN="${YELLOW}nicht eingerichtet${NC} ${GRAY}(sudo adguard-setup)${NC}"
+REBOOT_PLAN="${YELLOW}nicht eingerichtet${NC}"
 if systemctl is-enabled --quiet adguard-reboot.timer 2>/dev/null; then
     REBOOT_PLAN="$(systemctl show -p Description --value adguard-reboot.timer)"
     REBOOT_PLAN="${REBOOT_PLAN#Neustart }"
@@ -81,7 +81,8 @@ fi
 BACKUP_COUNT=$(ls -1 /var/backups/adguard/AdGuardHome-*.yaml 2>/dev/null | wc -l)
 if (( BACKUP_COUNT > 0 )); then
     BACKUP_LAST=$(date -r "$(ls -1t /var/backups/adguard/AdGuardHome-*.yaml | head -n1)" '+%d.%m.%Y %H:%M')
-    BACKUP_INFO="${CYAN}zuletzt ${BACKUP_LAST}${NC} ${GRAY}(${BACKUP_COUNT} Versionen, sudo adguard-backup)${NC}"
+    if (( BACKUP_COUNT == 1 )); then BACKUP_WORD="Version"; else BACKUP_WORD="Versionen"; fi
+    BACKUP_INFO="${CYAN}zuletzt ${BACKUP_LAST}${NC} ${GRAY}(${BACKUP_COUNT} ${BACKUP_WORD})${NC}"
 elif [[ -f /opt/AdGuardHome/AdGuardHome.yaml ]]; then
     BACKUP_INFO="${GRAY}noch keine – erfolgt täglich automatisch bei Änderungen${NC}"
 else
