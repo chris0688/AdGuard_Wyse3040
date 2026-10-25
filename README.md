@@ -319,6 +319,8 @@ Minuten wie vorher:
      2) nur AdGuard übernehmen
      3) nichts übernehmen, neu einrichten
    ```
+   Enthält das Backup keine Systemeinstellungen (z.B. von einer älteren
+   Version), gibt es nur „AdGuard übernehmen“ und „nichts übernehmen“.
 4. **1** wählen: AdGuard ist sofort wiederhergestellt (Filter, Regeln, Clients,
    Admin-Zugang). Die folgenden Fragen (Hostname, Neustart-Plan, Cockpit, IP)
    sind mit den alten Werten vorausgefüllt, einfach mit Enter bestätigen.

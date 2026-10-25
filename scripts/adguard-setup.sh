@@ -178,33 +178,40 @@ step_restore() {
     info "Backup auf USB-Stick gefunden"
     echo "Gefunden: $(cat "$dir/source.txt")"
     echo
-    echo "  1) AdGuard + Systemeinstellungen übernehmen (empfohlen)"
-    echo "  2) nur AdGuard übernehmen"
-    echo "  3) nichts übernehmen, neu einrichten"
-    choice="$(ask "Auswahl" "1")"
 
-    case "$choice" in
-        1|2)
-            if "$ADGUARD_BACKUP" --restore-file "$dir/AdGuardHome.yaml"; then
-                echo "AdGuard-Einstellungen übernommen – der Einrichtungsassistent ist nicht mehr nötig."
-            else
-                warn "AdGuard-Einstellungen konnten nicht übernommen werden."
-            fi
-            if [[ $choice == 1 ]]; then
-                if [[ -f $dir/adguard-setup.conf ]]; then
-                    load_presets "$dir/adguard-setup.conf"
-                    echo
-                    echo "Die folgenden Fragen sind mit den Werten aus dem Backup vorausgefüllt."
-                    echo "Einfach mit Enter bestätigen oder bei Bedarf ändern."
-                else
-                    warn "Im Backup sind keine Systemeinstellungen enthalten – bitte normal einrichten."
-                fi
-            fi
-            ;;
-        *)
-            echo "Es wird nichts übernommen."
-            ;;
-    esac
+    # Auswahl je nachdem, ob Systemeinstellungen im Backup enthalten sind
+    local restore_agh=0 use_settings=0
+    if [[ -f $dir/adguard-setup.conf ]]; then
+        choice="$(choose "Auswahl" 1 \
+            "AdGuard + Systemeinstellungen übernehmen (empfohlen)" \
+            "nur AdGuard übernehmen" \
+            "nichts übernehmen, neu einrichten")"
+        case "$choice" in
+            1) restore_agh=1; use_settings=1 ;;
+            2) restore_agh=1 ;;
+        esac
+    else
+        choice="$(choose "Auswahl" 1 \
+            "AdGuard übernehmen (empfohlen)" \
+            "nichts übernehmen, neu einrichten")"
+        [[ $choice == 1 ]] && restore_agh=1
+    fi
+
+    if (( restore_agh )); then
+        if "$ADGUARD_BACKUP" --restore-file "$dir/AdGuardHome.yaml"; then
+            echo "AdGuard-Einstellungen übernommen – der Einrichtungsassistent ist nicht mehr nötig."
+        else
+            warn "AdGuard-Einstellungen konnten nicht übernommen werden."
+        fi
+    else
+        echo "Es wird nichts übernommen."
+    fi
+    if (( use_settings )); then
+        load_presets "$dir/adguard-setup.conf"
+        echo
+        echo "Die folgenden Fragen sind mit den Werten aus dem Backup vorausgefüllt."
+        echo "Einfach mit Enter bestätigen oder bei Bedarf ändern."
+    fi
     rm -rf "$dir"
 }
 
