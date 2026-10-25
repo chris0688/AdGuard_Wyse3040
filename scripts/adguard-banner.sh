@@ -13,7 +13,7 @@ AGH_CONF="/opt/AdGuardHome/AdGuardHome.yaml"
 
 # Standardpasswort aus installer/preseed.cfg (steht ohnehin öffentlich im README).
 # Wird nur angezeigt, solange es noch aktiv ist, und nur an der lokalen Konsole.
-DEFAULT_PASSWORD="AdGuardRootPW1"
+DEFAULT_PASSWORD="adguard"
 LINE='\e{lightgreen}  =================================================================\e{reset}'
 
 # Benutzer (UID >= 1000), die ihr Passwort beim nächsten Login ändern müssen.

@@ -59,7 +59,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
    werden AdGuard Home und alle Einstellungen installiert (ca. 5 Minuten). Der
    Fortschritt steht am Bildschirm.
 6. **Anmelden** (am Gerät oder per SSH: `ssh adguard@<IP>`; die IP steht auf dem
-   Bildschirm). Benutzer `adguard`, Passwort `AdGuardRootPW1`. Danach geht es
+   Bildschirm). Benutzer `adguard`, Passwort `adguard`. Danach geht es
    automatisch weiter:
    - Ein **neues Passwort** muss gesetzt werden (siehe [Sicherheit](#sicherheit)).
    - Die **Grundeinrichtung** startet: Hostname, **regelmäßiger Neustart**,
@@ -73,7 +73,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 ## Sicherheit
 
 > [!IMPORTANT]
-> Das Standardpasswort `AdGuardRootPW1` steht öffentlich in dieser Anleitung.
+> Das Standardpasswort `adguard` steht öffentlich in dieser Anleitung.
 > **Es muss aus Sicherheitsgründen unbedingt geändert werden.** Das System
 > erzwingt das beim ersten Login. Bis dahin zeigt der Login-Bildschirm am Gerät
 > eine rote Warnung mit den Zugangsdaten, denn AdGuard lässt sich auch ohne
