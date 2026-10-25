@@ -36,6 +36,9 @@ else
     echo "==> Kein spezielles Gerät erkannt – keine Hardware-Anpassungen nötig."
 fi
 
+# AdGuard möchte sein Verzeichnis nur für root lesbar haben (sonst Warnung "permcheck")
+[[ -d /opt/AdGuardHome ]] && chmod 700 /opt/AdGuardHome
+
 echo "==> Login-Nachrichten ..."
 chmod 755 /etc/update-motd.d/*
 # Debian-Standardtexte ausblenden (Lizenzhinweis + uname-Zeile), eigene MOTD reicht

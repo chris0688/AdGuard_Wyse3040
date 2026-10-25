@@ -376,6 +376,12 @@ nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo adguard-setup` änd
   Sicherung einstecken und `sudo adguard-backup` → **(v)** wählen.
 
   Die Datei enthält den (verschlüsselten) Admin-Zugang, also sicher aufbewahren.
+- **Gerätenamen statt IP-Adressen im Dashboard:** In AdGuard unter
+  *Einstellungen → DNS-Einstellungen → Private Reverse-DNS-Server* die IP des
+  Routers eintragen (z.B. `192.168.178.1` bei einer FritzBox) und „Private
+  Reverse-DNS-Server verwenden“ aktivieren. Dann zeigt AdGuard „Laptop“ oder
+  „Handy“ statt `192.168.178.23`. Ohne diese Einstellung steht im Protokoll die
+  harmlose Meldung `private rdns resolution failed`.
 - **Port 3000** wird nach dem Einrichtungsassistenten nicht mehr gebraucht:
   `sudo ufw delete allow 3000/tcp`.
 
