@@ -579,8 +579,16 @@ main() {
     if (( NEED_REBOOT )); then
         warn "Ein Neustart ist nötig, damit alle Änderungen greifen."
         warn "Bei SSH-Verbindung: nach dem Neustart ggf. mit der NEUEN IP verbinden."
-        if yesno "Jetzt neu starten?" j; then systemctl reboot; fi
+        if yesno "Jetzt neu starten?" j; then
+            systemctl reboot
+            return 0
+        fi
+        warn "Bis zum Neustart zeigt die Übersicht noch die bisherigen Netzwerkwerte."
     fi
+
+    # Ergebnis gleich als Systemübersicht anzeigen (wie der Befehl "status")
+    echo
+    /etc/update-motd.d/99-custom-motd 2>/dev/null || true
 }
 
 main "$@"
