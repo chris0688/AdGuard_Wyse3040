@@ -137,8 +137,14 @@ restore_file() {
     local file="$1" a
     if [[ ${3:-} != --yes ]]; then
         echo "Wiederherstellen: $2"
-        read -rp "AdGuard wird kurz neu gestartet. Fortfahren? [j/N]: " a
-        [[ ${a,,} == j* ]] || { echo "Abgebrochen."; return 0; }
+        while true; do
+            read -rp "AdGuard wird kurz neu gestartet. Fortfahren? [j/N]: " a
+            case "${a,,}" in
+                j|ja|y|yes) break ;;
+                ""|n|nein|no) echo "Abgebrochen."; return 0 ;;
+                *) warn "Bitte j (ja) oder n (nein) eingeben." ;;
+            esac
+        done
     fi
 
     if ! grep -q '^dns:' "$file"; then

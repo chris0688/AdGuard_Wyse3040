@@ -17,10 +17,19 @@ fi
 id -nG 2>/dev/null | grep -qw sudo || [ "$(id -u)" -eq 0 ] || return 0
 
 printf '\n\033[1;33mDie Grundeinrichtung (Hostname, Neustart-Zeitplan, DHCP oder feste IP) ist noch nicht erledigt.\033[0m\n'
-printf 'Jetzt starten? [J/n] '
-read -r _adguard_answer
-case "$_adguard_answer" in
-    [nN]*) printf 'Später starten mit: sudo adguard-setup\n\n' ;;
-    *)     sudo /usr/local/sbin/adguard-setup ;;
-esac
+# Nur eindeutige Antworten gelten, sonst wird erneut gefragt
+while true; do
+    printf 'Jetzt starten? [J/n] '
+    read -r _adguard_answer
+    case "$_adguard_answer" in
+        ""|[jJ]|[jJ][aA]|[yY]|[yY][eE][sS])
+            sudo /usr/local/sbin/adguard-setup
+            break ;;
+        [nN]|[nN][eE][iI][nN]|[nN][oO])
+            printf 'Später starten mit: sudo adguard-setup\n\n'
+            break ;;
+        *)
+            printf 'Bitte j (ja) oder n (nein) eingeben.\n' ;;
+    esac
+done
 unset _adguard_answer

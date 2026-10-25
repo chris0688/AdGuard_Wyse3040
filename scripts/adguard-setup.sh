@@ -67,9 +67,15 @@ choose() {
 # yesno "Frage" "j|n" -> Rückgabewert 0 bei ja
 yesno() {
     local def="$2" answer
-    read -rp "$1 [$( [[ $def == j ]] && echo 'J/n' || echo 'j/N' )]: " answer
-    answer="${answer:-$def}"
-    [[ ${answer,,} == j* || ${answer,,} == y* ]]
+    while true; do
+        read -rp "$1 [$( [[ $def == j ]] && echo 'J/n' || echo 'j/N' )]: " answer
+        answer="${answer:-$def}"
+        case "${answer,,}" in
+            j|ja|y|yes)  return 0 ;;
+            n|nein|no)   return 1 ;;
+            *) warn "Bitte j (ja) oder n (nein) eingeben." ;;
+        esac
+    done
 }
 
 
