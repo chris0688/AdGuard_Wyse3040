@@ -9,8 +9,7 @@
 # Intern:
 #   adguard-usb issue          Zeilen "USB-Stick" für den Login-Banner (adguard-banner)
 #   adguard-usb event add|remove GERÄT [NAME]
-#                              (von udev, 90-adguard-usb.rules) Meldung an alle
-#                              angemeldeten Sitzungen (Konsole, SSH) und ins
+#                              (von udev, 90-adguard-usb.rules) Eintrag ins
 #                              Systemprotokoll, danach Login-Banner neu erzeugen
 #
 # Für frei/belegt wird ein nicht eingehängter Stick kurz NUR LESEND eingehängt.
@@ -94,24 +93,9 @@ cmd_issue() {
     done < <(list_usb)
 }
 
-# Meldung an alle Terminals angemeldeter Benutzer (lokale Konsole und SSH).
-# Nicht über "who": Debian 13 führt die utmp-Liste nicht mehr zuverlässig,
-# SSH-Sitzungen fehlen dort. Stattdessen Sitzungen von systemd-logind plus
-# alle offenen Pseudo-Terminals (SSH, Cockpit-Terminal).
-broadcast() {
-    local s tty
-    {
-        for s in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
-            tty="$(loginctl show-session "$s" -p TTY --value 2>/dev/null)"
-            [[ -n $tty ]] && echo "/dev/${tty#/dev/}"
-        done
-        ls -1 /dev/pts/[0-9]* 2>/dev/null
-    } | sort -u | while read -r tty; do
-        [[ -c $tty ]] || continue
-        timeout 2 sh -c 'printf "\r\n\033[1;36m[USB]\033[0m %s\r\n" "$1" > "$2"' _ "$1" "$tty" 2>/dev/null
-    done
-}
-
+# Bewusst keine Meldung in offene Terminals (Konsole/SSH): Das stört die
+# Eingabezeile und ist bei SSH-Sitzungen fehleranfällig. Info gibt es im
+# Login-Banner, in "status" und im Protokoll.
 cmd_event() {
     local action="$1" name="$2" label="${3:-}" msg d l f s
     case "$action" in
@@ -127,7 +111,6 @@ cmd_event() {
         *)  return 2 ;;
     esac
     logger -t adguard-usb "$msg"
-    broadcast "$msg"
     /usr/local/sbin/adguard-banner || true
 }
 

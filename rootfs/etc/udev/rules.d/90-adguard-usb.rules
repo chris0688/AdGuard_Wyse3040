@@ -1,4 +1,5 @@
-# USB-Sticks: Meldung beim Einstecken und Abziehen (siehe /usr/local/sbin/adguard-usb).
+# USB-Sticks: beim Einstecken und Abziehen Login-Banner aktualisieren und
+# protokollieren (siehe /usr/local/sbin/adguard-usb).
 # Läuft per systemd-run im Hintergrund, damit udev nicht wartet.
 ACTION=="add", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{ID_FS_USAGE}=="filesystem", \
     RUN+="/usr/bin/systemd-run --no-block --quiet --collect /usr/local/sbin/adguard-usb event add $kernel '$env{ID_FS_LABEL}'"

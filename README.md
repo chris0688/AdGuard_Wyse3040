@@ -104,7 +104,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 | Paket-Cache | wird alle 7 Tage aufgeräumt | `rootfs/etc/apt/apt.conf.d/70autoclean` |
 | Uhrzeit | automatisch per NTP von `de.pool.ntp.org` (Rückfall: Debian-Pool); die Begrüßung warnt, falls nicht synchronisiert | `rootfs/etc/systemd/timesyncd.conf.d/adguard.conf` |
 | AdGuard-Backup | täglich 03:30 bei Änderungen, letzte 7 Versionen, plus Systemeinstellungen aus `adguard-setup`; Verwaltung, Wiederherstellung und USB-Stick mit `sudo adguard-backup`; bei Neuinstallation automatisch angeboten | `scripts/adguard-backup.sh`, `rootfs/etc/systemd/system/adguard-backup.*` |
-| USB-Stick-Info | Meldung beim Einstecken/Abziehen, Anzeige im Anmeldebildschirm und in `status` (frei/belegt, Anzahl Backups) | `scripts/adguard-usb.sh`, `rootfs/etc/udev/rules.d/90-adguard-usb.rules` |
+| USB-Stick-Info | Anzeige im Anmeldebildschirm (aktualisiert sich beim Einstecken/Abziehen) und in `status` (frei/belegt, Anzahl Backups) | `scripts/adguard-usb.sh`, `rootfs/etc/udev/rules.d/90-adguard-usb.rules` |
 | Firewall (ufw) | offen: 22/tcp (SSH), 53 (DNS), 80/tcp, 443, 3000/tcp (Setup-Assistent) | `scripts/install.sh` |
 | fail2ban | SSH: 5 Fehlversuche in 10 Min. → 15 Min. Sperre, Wiederholungstäter länger (bis 1 Woche) | `rootfs/etc/fail2ban/jail.local` |
 | zram-Swap | komprimierter Swap im RAM (50 %), schont die eMMC | `rootfs/etc/default/zramswap` |
@@ -398,10 +398,10 @@ nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo adguard-setup` änd
   vor Datenverlust bei Stromausfall); er kann danach stecken bleiben oder
   abgezogen werden.
 
-  Beim **Einstecken und Abziehen** eines Sticks erscheint in allen offenen
-  Sitzungen (Konsole, SSH) eine kurze Meldung mit Name, freiem Speicher und Anzahl
-  der Backups darauf. Der Anmeldebildschirm zeigt, welcher Stick steckt, `status`
-  zusätzlich frei/belegt (dafür wird der Stick kurz nur lesend eingehängt).
+  Welcher Stick steckt, zeigt der **Anmeldebildschirm** (aktualisiert sich beim
+  Einstecken/Abziehen) und `status`, dort zusätzlich frei/belegt und die Anzahl
+  der Backups darauf (dafür wird der Stick kurz nur lesend eingehängt).
+  Protokoll aller Ein-/Aussteckvorgänge: `sudo journalctl -t adguard-usb`
 
   **Stick dauerhaft stecken lassen:** Gibt es auf einem eingesteckten Stick den
   Ordner `AdGuard-Backup/` (entsteht beim ersten Kopieren mit Menüpunkt **3**), kopiert die tägliche
