@@ -139,8 +139,10 @@ konfliktfrei, und es ist sofort sichtbar, was angepasst wurde.
         → /var/lib/adguard-setup/bootstrap.done (Dienst läuft danach nie wieder)
 ```
 
-Schlägt etwas fehl (z.B. kein Internet), versucht der Dienst es alle 30 Sekunden
-erneut; die Login-Anzeige zeigt dann einen Hinweis.
+Ist noch kein Internet da (z.B. IP noch nicht bezogen oder Kabel nicht
+eingesteckt), wartet die Einrichtung darauf; der Anmeldebildschirm zeigt dann
+„Warte auf Internet“. Schlägt danach etwas fehl, versucht der Dienst es alle
+30 Sekunden erneut; die Login-Anzeige zeigt dann einen Hinweis.
 
 ## Repository-Aufbau
 

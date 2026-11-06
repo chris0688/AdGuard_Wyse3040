@@ -51,6 +51,18 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+# ------------------------------------------------------------ Internet abwarten
+# Direkt nach dem Start ist oft noch keine IP da. Statt "fehlgeschlagen" anzuzeigen,
+# warten, bis die Debian-Paketquelle erreichbar ist (bewusst http: funktioniert
+# auch, falls die Uhr noch falsch geht).
+
+internet_ok() { curl -fsS -o /dev/null --max-time 5 http://deb.debian.org/debian/; }
+
+if ! internet_ok; then
+    status yellow "Warte auf Internet - Netzwerkkabel pruefen (neuer Versuch alle 10 s)"
+    until internet_ok; do sleep 10; done
+fi
+
 # ------------------------------------------------------------ Pakete
 
 status yellow "Einrichtung laeuft (Pakete werden installiert) - bitte warten ..."
