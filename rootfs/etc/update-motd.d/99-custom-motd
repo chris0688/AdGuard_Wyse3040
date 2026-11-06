@@ -89,6 +89,10 @@ else
     BACKUP_INFO="${GRAY}–${NC}"
 fi
 
+# Eingesteckte USB-Sticks (adguard-usb), eine Zeile je Stick
+USB_INFO=""
+[[ -x /usr/local/sbin/adguard-usb ]] && USB_INFO=$(timeout 25 /usr/local/sbin/adguard-usb info 2>/dev/null)
+
 # Web-Konsole (Cockpit), falls installiert
 WEBCONSOLE=""
 systemctl is-enabled --quiet cockpit.socket 2>/dev/null && WEBCONSOLE="https://${IP_ADDR}:9090"
@@ -145,6 +149,15 @@ echo ""
 echo -e "  ${BLUE}Auto-Update:${NC}   ${AUTO_UPDATE}"
 echo -e "  ${BLUE}Auto-Neustart:${NC} ${CYAN}${REBOOT_PLAN}${NC}"
 echo -e "  ${BLUE}Backup:${NC}        ${BACKUP_INFO}"
+if [[ -n $USB_INFO ]]; then
+    USB_LABEL="USB-Stick:"
+    while IFS= read -r line; do
+        printf "  ${BLUE}%-14s${NC} ${CYAN}%s${NC}\n" "$USB_LABEL" "$line"
+        USB_LABEL=""
+    done <<< "$USB_INFO"
+else
+    echo -e "  ${BLUE}USB-Stick:${NC}     ${GRAY}keiner eingesteckt${NC}"
+fi
 echo -e "$LINE"
 
 if [[ ! -f /var/lib/adguard-setup/setup.done ]]; then

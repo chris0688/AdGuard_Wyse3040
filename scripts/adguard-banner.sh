@@ -62,5 +62,9 @@ for f in /etc/issue.d/cockpit.issue /etc/motd.d/cockpit; do
     fi
 done
 
+# Zeile "USB-Stick" im Banner auf den aktuellen Stand bringen (z.B. nach dem
+# Start, falls ein Stick im ausgeschalteten Zustand abgezogen wurde)
+[[ -x /usr/local/sbin/adguard-usb ]] && /usr/local/sbin/adguard-usb issue || true
+
 # Angezeigten Banner an der Konsole sofort aktualisieren
 agetty --reload 2>/dev/null || true

@@ -45,10 +45,11 @@ chmod 755 /etc/update-motd.d/*
 : > /etc/motd
 [[ -f /etc/update-motd.d/10-uname ]] && chmod -x /etc/update-motd.d/10-uname
 
-echo "==> Installiere adguard-setup und adguard-banner nach /usr/local/sbin ..."
+echo "==> Installiere die adguard-Befehle nach /usr/local/sbin ..."
 install -m 755 "$REPO_DIR/scripts/adguard-setup.sh"  /usr/local/sbin/adguard-setup
 install -m 755 "$REPO_DIR/scripts/adguard-banner.sh" /usr/local/sbin/adguard-banner
 install -m 755 "$REPO_DIR/scripts/adguard-backup.sh" /usr/local/sbin/adguard-backup
+install -m 755 "$REPO_DIR/scripts/adguard-usb.sh"    /usr/local/sbin/adguard-usb
 install -m 755 "$REPO_DIR/scripts/status.sh"         /usr/local/bin/status
 
 # "status" darf die Übersicht ohne Passwort mit Admin-Rechten anzeigen.
@@ -70,6 +71,7 @@ ufw --force enable
 
 echo "==> Dienste neu laden ..."
 systemctl daemon-reexec          # system.conf.d (Watchdog) übernehmen
+udevadm control --reload         # USB-Stick-Meldungen (90-adguard-usb.rules)
 systemctl enable adguard-banner.service
 systemctl enable --now adguard-banner.path
 systemctl enable --now adguard-backup.timer

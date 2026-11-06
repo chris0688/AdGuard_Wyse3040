@@ -1,0 +1,6 @@
+# USB-Sticks: Meldung beim Einstecken und Abziehen (siehe /usr/local/sbin/adguard-usb).
+# Läuft per systemd-run im Hintergrund, damit udev nicht wartet.
+ACTION=="add", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{ID_FS_USAGE}=="filesystem", \
+    RUN+="/usr/bin/systemd-run --no-block --quiet --collect /usr/local/sbin/adguard-usb event add $kernel '$env{ID_FS_LABEL}'"
+ACTION=="remove", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{ID_FS_USAGE}=="filesystem", \
+    RUN+="/usr/bin/systemd-run --no-block --quiet --collect /usr/local/sbin/adguard-usb event remove $kernel '$env{ID_FS_LABEL}'"
