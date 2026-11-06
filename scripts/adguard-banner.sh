@@ -40,6 +40,10 @@ systemctl is-enabled --quiet cockpit.socket 2>/dev/null && cockpit=1
     if (( cockpit )); then
         echo '\e{lightblue}    Web-Konsole:      \e{lightcyan}https://\4:9090\e{reset}'
     fi
+    # Eingesteckte USB-Sticks (wird beim Einstecken/Abziehen neu erzeugt)
+    if [[ -x /usr/local/sbin/adguard-usb ]]; then
+        /usr/local/sbin/adguard-usb issue || true
+    fi
     echo "$LINE"
     if [[ -n $pending_users ]]; then
         echo
@@ -62,9 +66,8 @@ for f in /etc/issue.d/cockpit.issue /etc/motd.d/cockpit; do
     fi
 done
 
-# Zeile "USB-Stick" im Banner auf den aktuellen Stand bringen (z.B. nach dem
-# Start, falls ein Stick im ausgeschalteten Zustand abgezogen wurde)
-[[ -x /usr/local/sbin/adguard-usb ]] && /usr/local/sbin/adguard-usb issue || true
+# Frühere Version legte die USB-Zeile separat ab (unterhalb des Banners)
+rm -f /etc/issue.d/60-adguard-usb.issue
 
 # Angezeigten Banner an der Konsole sofort aktualisieren
 agetty --reload 2>/dev/null || true

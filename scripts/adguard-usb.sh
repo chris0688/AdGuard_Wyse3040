@@ -5,18 +5,18 @@
 #
 #   adguard-usb info           eine Zeile je Stick: Name, Dateisystem, frei/gesamt,
 #                              Anzahl Backups im Ordner AdGuard-Backup/ (für "status")
-#   adguard-usb issue          Zeile im Login-Banner an die gesteckten Sticks anpassen
 #
-# Intern (von udev, 90-adguard-usb.rules):
+# Intern:
+#   adguard-usb issue          Zeilen "USB-Stick" für den Login-Banner (adguard-banner)
 #   adguard-usb event add|remove GERÄT [NAME]
-#                              Meldung an alle angemeldeten Sitzungen (Konsole, SSH)
-#                              und ins Systemprotokoll, danach Login-Banner aktualisieren
+#                              (von udev, 90-adguard-usb.rules) Meldung an alle
+#                              angemeldeten Sitzungen (Konsole, SSH) und ins
+#                              Systemprotokoll, danach Login-Banner neu erzeugen
 #
 # Für frei/belegt wird ein nicht eingehängter Stick kurz NUR LESEND eingehängt.
 set -uo pipefail
 
 USB_DIR_NAME="AdGuard-Backup"
-ISSUE_FILE="/etc/issue.d/60-adguard-usb.issue"
 
 # "GERÄT|NAME|DATEISYSTEM|GRÖSSE" je USB-Datenträger mit Dateisystem
 list_usb() {
@@ -85,19 +85,13 @@ cmd_info() {
     done < <(list_usb)
 }
 
-# Login-Banner (ohne Einhängen, nur Name und Größe)
+# Zeilen für den Login-Banner (ohne Einhängen, nur Name und Größe);
+# adguard-banner baut sie in den Kasten mit Hostname/IP ein
 cmd_issue() {
-    local d l f s out=""
+    local d l f s
     while IFS='|' read -r d l f s; do
-        out+="\\e{lightblue}    USB-Stick:        \\e{lightcyan}$l\\e{reset} ($f, $s)"$'\n'
+        echo "\\e{lightblue}    USB-Stick:        \\e{lightcyan}$l\\e{reset} ($f, $s)"
     done < <(list_usb)
-    if [[ -n $out ]]; then
-        mkdir -p "$(dirname "$ISSUE_FILE")"
-        printf '%s\n' "$out" > "$ISSUE_FILE"
-    else
-        rm -f "$ISSUE_FILE"
-    fi
-    agetty --reload 2>/dev/null || true
 }
 
 # Meldung an alle Terminals angemeldeter Benutzer (lokale Konsole und SSH)
@@ -125,7 +119,7 @@ cmd_event() {
     esac
     logger -t adguard-usb "$msg"
     broadcast "$msg"
-    cmd_issue
+    /usr/local/sbin/adguard-banner || true
 }
 
 if [[ $EUID -ne 0 ]]; then
