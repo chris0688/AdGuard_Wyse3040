@@ -40,8 +40,11 @@ list_backups() {
 }
 
 # Sichert die aktuelle Konfiguration, wenn sie sich von der neuesten Sicherung
-# unterscheidet. Rückgabe 0 = neue Sicherung angelegt, 1 = nichts zu tun.
+# unterscheidet. Mit --ask (Menü) wird bei unveränderter Konfiguration gefragt,
+# ob trotzdem gesichert werden soll.
+# Rückgabe 0 = neue Sicherung angelegt, 1 = nichts zu tun.
 backup_now() {
+    local ask="${1:-}"
     backup_setup_conf
     if [[ ! -f $AGH_CONF ]]; then
         echo "AdGuard ist noch nicht eingerichtet – nichts zu sichern."
@@ -53,8 +56,17 @@ backup_now() {
     local newest
     newest="$(list_backups | head -n1)"
     if [[ -n $newest ]] && cmp -s "$AGH_CONF" "$newest"; then
-        echo "Keine Änderungen seit der letzten Sicherung ($(basename "$newest"))."
-        return 1
+        echo "Keine Änderungen seit der letzten Sicherung ($(pretty_date "$newest"))."
+        [[ $ask == --ask ]] || return 1
+        local a
+        while true; do
+            read -rp "Trotzdem eine neue Sicherung anlegen? [j/N]: " a
+            case "${a,,}" in
+                j|ja|y|yes) break ;;
+                ""|n|nein|no) return 1 ;;
+                *) warn "Bitte j (ja) oder n (nein) eingeben." ;;
+            esac
+        done
     fi
 
     local target
@@ -437,7 +449,7 @@ while true; do
     echo "  0) beenden"
     read -rp "Auswahl [0]: " choice
     case "$choice" in
-        1) backup_now || true ;;
+        1) backup_now --ask || true ;;
         2) (( ${#BACKUPS[@]} )) && restore ;;
         3) copy_to_usb ;;
         4) restore_from_usb ;;
