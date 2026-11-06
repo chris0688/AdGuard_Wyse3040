@@ -94,12 +94,21 @@ cmd_issue() {
     done < <(list_usb)
 }
 
-# Meldung an alle Terminals angemeldeter Benutzer (lokale Konsole und SSH)
+# Meldung an alle Terminals angemeldeter Benutzer (lokale Konsole und SSH).
+# Nicht über "who": Debian 13 führt die utmp-Liste nicht mehr zuverlässig,
+# SSH-Sitzungen fehlen dort. Stattdessen Sitzungen von systemd-logind plus
+# alle offenen Pseudo-Terminals (SSH, Cockpit-Terminal).
 broadcast() {
-    local tty
-    for tty in $(who | awk '{print $2}' | sort -u); do
-        [[ -c /dev/$tty ]] || continue
-        timeout 2 sh -c 'printf "\r\n\033[1;36m[USB]\033[0m %s\r\n" "$1" > "$2"' _ "$1" "/dev/$tty" 2>/dev/null
+    local s tty
+    {
+        for s in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
+            tty="$(loginctl show-session "$s" -p TTY --value 2>/dev/null)"
+            [[ -n $tty ]] && echo "/dev/${tty#/dev/}"
+        done
+        ls -1 /dev/pts/[0-9]* 2>/dev/null
+    } | sort -u | while read -r tty; do
+        [[ -c $tty ]] || continue
+        timeout 2 sh -c 'printf "\r\n\033[1;36m[USB]\033[0m %s\r\n" "$1" > "$2"' _ "$1" "$tty" 2>/dev/null
     done
 }
 

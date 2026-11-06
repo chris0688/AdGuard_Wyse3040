@@ -110,8 +110,10 @@ describe_file() {
     fi
 }
 
+# Übersicht im Hauptmenü – bewusst ohne Nummern, die gehören dort dem Menü.
+# Nummeriert wird erst im Auswahlschritt (choose_backup).
 show_list() {
-    local i=1 f
+    local f
     mapfile -t BACKUPS < <(list_backups)
     if (( ${#BACKUPS[@]} == 0 )); then
         echo "Noch keine Sicherungen vorhanden."
@@ -119,27 +121,63 @@ show_list() {
     fi
     echo "Gesicherte Versionen (neueste zuerst):"
     for f in "${BACKUPS[@]}"; do
-        printf '  %d)  %s   %6s\n' "$i" "$(pretty_date "$f")" "$(du -h "$f" | cut -f1)"
-        i=$((i + 1))
+        printf '   •  %s   %6s\n' "$(pretty_date "$f")" "$(du -h "$f" | cut -f1)"
     done
     [[ -f $BACKUP_DIR/adguard-setup.conf ]] && echo "  + Systemeinstellungen (adguard-setup)"
     return 0
 }
 
-choose_backup() {   # Ergebnis in CHOSEN
-    local nr
-    read -rp "Nummer der Version: " nr
-    if [[ ! $nr =~ ^[0-9]+$ ]] || (( nr < 1 || nr > ${#BACKUPS[@]} )); then
-        warn "Ungültige Nummer."
-        return 1
+# pick "Überschrift" [--alle] "Zeile 1" "Zeile 2" ... – Auswahlschritt mit
+# nummerierter Liste und "0) zurück". Ergebnis in PICK (Nummer ab 1) bzw.
+# PICK="ALLE" bei Enter mit --alle. Rückgabe 1 = zurück.
+pick() {
+    local title="$1" all="" i=1 line nr
+    shift
+    if [[ ${1:-} == --alle ]]; then all=1; shift; fi
+    echo
+    echo "$title"
+    for line in "$@"; do
+        printf '  %d)  %s\n' "$i" "$line"
+        i=$((i + 1))
+    done
+    echo "  0)  zurück"
+    while true; do
+        if [[ -n $all ]]; then
+            read -rp "Auswahl [Enter = alle]: " nr
+            [[ -z $nr ]] && { PICK="ALLE"; return 0; }
+        else
+            read -rp "Auswahl [0]: " nr
+            nr="${nr:-0}"
+        fi
+        [[ $nr == 0 ]] && return 1
+        if [[ $nr =~ ^[0-9]+$ ]] && (( nr >= 1 && nr <= $# )); then
+            PICK="$nr"
+            return 0
+        fi
+        warn "Bitte eine Zahl von 0 bis $# eingeben."
+    done
+}
+
+# choose_backup "Überschrift" [--alle] – Version aus der lokalen Liste wählen.
+# Ergebnis in CHOSEN (eine Datei) bzw. CHOSEN="ALLE". Rückgabe 1 = zurück.
+choose_backup() {
+    local f lines=()
+    for f in "${BACKUPS[@]}"; do
+        lines+=("$(printf '%s   %6s' "$(pretty_date "$f")" "$(du -h "$f" | cut -f1)")")
+    done
+    lines[0]+="   (neueste)"
+    pick "$1" ${2:+"$2"} "${lines[@]}" || return 1
+    if [[ $PICK == ALLE ]]; then
+        CHOSEN="ALLE"
+    else
+        CHOSEN="${BACKUPS[$((PICK - 1))]}"
     fi
-    CHOSEN="${BACKUPS[$((nr - 1))]}"
 }
 
 # ---------------------------------------------------------------- Wiederherstellen
 
 restore() {
-    choose_backup || return 0
+    choose_backup "Welche Version wiederherstellen?" || return 0
     restore_file "$CHOSEN" "$(pretty_date "$CHOSEN")" || true
 }
 
@@ -190,7 +228,7 @@ restore_file() {
 }
 
 export_for_download() {
-    choose_backup || return 0
+    choose_backup "Welche Version zum Download bereitlegen?" || return 0
     local user="${SUDO_USER:-}"
     if [[ -z $user || $user == root ]]; then
         warn "Bitte mit sudo als normaler Benutzer aufrufen (z.B. adguard)."
@@ -255,7 +293,7 @@ umount_dev() {
 
 # Fragt nach, wenn mehrere Sticks stecken; setzt USB_DEV
 select_usb() {
-    local parts p nr i=1
+    local parts p lines=()
     mapfile -t parts < <(find_usb_partitions)
     if (( ${#parts[@]} == 0 )); then
         warn "Kein USB-Stick gefunden (unterstützt: FAT32, exFAT, NTFS, ext4)."
@@ -266,17 +304,11 @@ select_usb() {
         echo "USB-Stick: ${parts[0]#*|}  [$USB_DEV]"
         return 0
     fi
-    echo "Gefundene USB-Laufwerke:"
     for p in "${parts[@]}"; do
-        printf '  %d)  %s  [%s]\n' "$i" "${p#*|}" "${p%%|*}"
-        i=$((i + 1))
+        lines+=("${p#*|}  [${p%%|*}]")
     done
-    read -rp "Welches? Nummer: " nr
-    if [[ ! $nr =~ ^[0-9]+$ ]] || (( nr < 1 || nr > ${#parts[@]} )); then
-        warn "Ungültige Nummer."
-        return 1
-    fi
-    USB_DEV="${parts[$((nr - 1))]%%|*}"
+    pick "Welcher USB-Stick?" "${lines[@]}" || return 1
+    USB_DEV="${parts[$((PICK - 1))]%%|*}"
 }
 
 mount_usb() {
@@ -300,15 +332,12 @@ copy_to_usb() {
         warn "Noch keine Sicherungen vorhanden – zuerst 1) jetzt sichern."
         return 0
     fi
-    local sel files=()
-    read -rp "Nummer der Version (Enter = alle): " sel
-    if [[ -z $sel ]]; then
+    local files=()
+    choose_backup "Welche Version auf den USB-Stick kopieren?" --alle || return 0
+    if [[ $CHOSEN == ALLE ]]; then
         files=("${BACKUPS[@]}")
-    elif [[ $sel =~ ^[0-9]+$ ]] && (( sel >= 1 && sel <= ${#BACKUPS[@]} )); then
-        files=("${BACKUPS[$((sel - 1))]}")
     else
-        warn "Ungültige Auswahl."
-        return 0
+        files=("$CHOSEN")
     fi
     [[ -f $BACKUP_DIR/adguard-setup.conf ]] && files+=("$BACKUP_DIR/adguard-setup.conf")
 
@@ -323,7 +352,7 @@ copy_to_usb() {
 }
 
 restore_from_usb() {
-    local files f nr i=1 chosen tmp desc
+    local files f lines=() chosen tmp desc
     mount_usb || return 0
     # Gesucht wird im Ordner AdGuard-Backup/ und direkt im Hauptverzeichnis des Sticks
     mapfile -t files < <(ls -1t "$MNT/$USB_DIR_NAME"/*.yaml "$MNT"/AdGuardHome*.yaml 2>/dev/null || true)
@@ -332,18 +361,15 @@ restore_from_usb() {
         umount_dev
         return 0
     fi
-    echo "Sicherungen auf dem USB-Stick (neueste zuerst):"
     for f in "${files[@]}"; do
-        printf '  %d)  %s\n' "$i" "$(describe_file "$f")"
-        i=$((i + 1))
+        lines+=("$(describe_file "$f")")
     done
-    read -rp "Nummer der Version: " nr
-    if [[ ! $nr =~ ^[0-9]+$ ]] || (( nr < 1 || nr > ${#files[@]} )); then
-        warn "Ungültige Nummer."
-        umount_dev
+    lines[0]+="   (neueste)"
+    if ! pick "Welche Version vom USB-Stick wiederherstellen?" "${lines[@]}"; then
+        umount_dev leise
         return 0
     fi
-    chosen="${files[$((nr - 1))]}"
+    chosen="${files[$((PICK - 1))]}"
     desc="$(describe_file "$chosen") vom USB-Stick"
 
     # Erst lokal zwischenspeichern, damit der Stick gleich wieder frei ist
