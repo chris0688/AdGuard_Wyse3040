@@ -30,6 +30,32 @@ tar -C "$REPO_DIR/rootfs" -cf - . | tar -C / --no-same-owner -xvf -
 # Region (Sprache der Texte, Datumsformat, NTP-Server), siehe scripts/set-region.sh
 "$REPO_DIR/scripts/set-region.sh"
 
+# Tastatur: setzt normalerweise der Installer (console-setup). Geräte bis v1.0
+# hatten das Paket nicht und damit an der Konsole immer US-Layout. Nur wenn
+# GAR KEINE Tastatur eingerichtet ist, das Layout der Region nehmen – eine
+# vorhandene Einstellung wird nie geändert.
+if [[ ! -s /etc/default/keyboard ]]; then
+    keymap="$(sed -n 's/^KEYMAP=//p' /etc/adguard-region.conf | tr -d '"')"
+    [[ $keymap =~ ^[a-z]{2,3}$ ]] || keymap=us
+    echo "==> Keyboard layout: $keymap"
+    cat > /etc/default/keyboard <<EOF
+# KEYBOARD CONFIGURATION FILE (set by AdGuard-Wyse3040 install.sh from the region)
+# Change with: sudo dpkg-reconfigure keyboard-configuration
+XKBMODEL="pc105"
+XKBLAYOUT="$keymap"
+XKBVARIANT=""
+XKBOPTIONS=""
+BACKSPACE="guess"
+EOF
+    # Paket übernimmt die vorhandene Datei; ohne Internet beim nächsten Update erneut
+    if DEBIAN_FRONTEND=noninteractive apt-get install -y -qq console-setup >/dev/null 2>&1; then
+        setupcon --force 2>/dev/null || true
+    else
+        echo "WARNING: console-setup could not be installed – keyboard stays US until the next update." >&2
+        rm -f /etc/default/keyboard
+    fi
+fi
+
 echo "==> Installing texts to /usr/local/share/adguard ..."
 install -d /usr/local/share/adguard/lang
 install -m 644 "$REPO_DIR/scripts/i18n.sh" /usr/local/share/adguard/i18n.sh

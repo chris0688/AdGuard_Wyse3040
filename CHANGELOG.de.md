@@ -17,6 +17,10 @@ English version: [CHANGELOG.md](CHANGELOG.md)
 - Bestehende Geräte bleiben nach dem Update deutsch (Region wird aus der
   System-Locale erkannt).
 - Neustart-Schritt im Setup zeigt die Uhrzeit und Zeitzone des Geräts.
+- Fehler behoben: Die Tastatur am Gerät hatte immer US-Layout (das Paket
+  `console-setup` fehlte). Neue Installationen übernehmen das Layout aus dem
+  Bootmenü; bestehende Geräte ohne Tastatureinstellung bekommen beim Update das
+  Layout der Region (Deutsch: `de`).
 - Die README ist jetzt Englisch, die deutsche Fassung steht in `README.de.md`.
 
 ## v1.0.1

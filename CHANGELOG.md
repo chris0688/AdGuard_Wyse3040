@@ -16,10 +16,15 @@ Deutsche Fassung: [CHANGELOG.de.md](CHANGELOG.de.md)
 - Existing devices stay German after the update (the region is detected from
   the system locale).
 - The reboot step in the setup shows the device's time and time zone.
+- Fixed: the keyboard on the device was always US layout (package
+  `console-setup` was missing). New installations use the layout from the boot
+  menu; existing devices without a keyboard setting get the region's layout on
+  update (German: `de`).
 - The README is now in English, the German version is in `README.de.md`.
 - Deutsch: Neu ist die **Mehrsprachigkeit**. Sprache und Land werden bei einer
   Neuinstallation im Bootmenü gewählt. Bestehende Geräte bleiben nach dem
-  Update deutsch. Die README ist jetzt Englisch, die deutsche Fassung steht in
+  Update deutsch und bekommen an der Konsole das deutsche Tastaturlayout (war
+  bisher US). Die README ist jetzt Englisch, die deutsche Fassung steht in
   `README.de.md`. Künftige Änderungslisten erscheinen auf deutschen Geräten
   wieder auf Deutsch.
 
