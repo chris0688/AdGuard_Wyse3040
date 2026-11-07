@@ -646,7 +646,9 @@ do_update() {
     fi
 
     tmp="$(mktemp -d)"
-    trap 'rm -rf "$tmp"' EXIT   # Aufruf endet direkt nach do_update (siehe main)
+    # Aufruf endet direkt nach do_update (siehe main). Pfad schon hier einsetzen:
+    # beim EXIT ist die lokale Variable $tmp nicht mehr gültig (set -u).
+    trap "rm -rf -- '$tmp'" EXIT
     if ! curl -fsSL --max-time 120 "https://github.com/$repo/archive/refs/tags/$latest.tar.gz" \
             | tar -xz -C "$tmp" --strip-components=1 \
        || [[ ! -f $tmp/scripts/install.sh ]]; then

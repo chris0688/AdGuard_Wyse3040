@@ -4,6 +4,12 @@ Neueste Version oben. Diese Liste zeigt auch `sudo adguard-setup --update` vor
 einem Update an. Änderungen, die nur bei einer **Neuinstallation** wirken (z.B.
 Installer, Partitionierung), sind entsprechend gekennzeichnet.
 
+## v0.9.2
+
+- Fehler behoben: `adguard-setup --update` meldete am Ende „tmp ist nicht
+  gesetzt“ und ließ den Download-Ordner in `/tmp` liegen. Die Meldung kommt
+  beim Update auf diese Version noch ein letztes Mal.
+
 ## v0.9.1
 
 - Neu: `sudo adguard-setup --version` zeigt die installierte Projektversion.
