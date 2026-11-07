@@ -11,8 +11,8 @@ eingerichtet. Linux-Kenntnisse sind dafür nicht nötig.
 Gebaut für den Wyse 3040, funktioniert aber auch auf
 [anderer Hardware](#andere-hardware) (praktisch jeder 64-Bit-PC mit UEFI).
 
-> 🇬🇧 *This project is currently available in German only. An English version is
-> planned once testing is complete – see [Ausblick](#ausblick).*
+> 🇬🇧 *This project is currently available in German only. An English /
+> multilingual version is planned for the next major release – see [Ausblick](#ausblick).*
 
 ---
 
@@ -42,7 +42,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 **Du brauchst:** Dell Wyse 3040 mit Netzwerkkabel (Internet nötig), USB-Stick
 (≥ 1 GB), Tastatur und Monitor nur für die Installation.
 
-1. **ISO herunterladen** – die neueste ISO (z.B. `adguard-wyse3040-v0.6-debian-13.7.0.iso`) unter
+1. **ISO herunterladen** – die neueste ISO (z.B. `adguard-wyse3040-v1.0.0-debian-13.x.iso`) unter
    [**Releases**](../../releases/latest) (oder [selbst bauen](#usb-stick-iso-bauen)) –
    und auf einen USB-Stick bringen:
    - **[Ventoy](https://www.ventoy.net):** ISO einfach auf den Stick kopieren.
@@ -95,8 +95,8 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 | Basis | Debian 13 „Trixie“ minimal, ohne Desktop, mit SSH-Server. Benutzer `adguard` mit sudo-Rechten, kein root-Login. | `installer/preseed.cfg` |
 | Partitionierung | erste interne Platte (eMMC, NVMe oder SATA; USB wird übersprungen): EFI + eine ext4-Partition (`noatime`), **keine Swap-Partition** | `installer/preseed.cfg` |
 | AdGuard Home | aktuelle Version nach `/opt/AdGuardHome`, systemd-Dienst `AdGuardHome` | `scripts/bootstrap.sh` |
-| Login-Banner (vor Login) | farbiges Banner mit Hostname, IP, AdGuard-Adresse, ggf. Einrichtungsassistent und Web-Konsole; **rote Warnung, solange das Standardpasswort aktiv ist**; zeigt während der Ersteinrichtung den Fortschritt | `scripts/adguard-banner.sh`, `rootfs/etc/systemd/system/adguard-banner.*` |
-| Begrüßung (nach Login) | AdGuard-Logo, Gerät, Systemstatus mit RAM-/Speicher-Balken, Temperatur, AdGuard-Status, Web-Konsole, Auto-Update (aktiv + letzter Lauf), Auto-Neustart | `rootfs/etc/update-motd.d/99-custom-motd` |
+| Login-Banner (vor Login) | farbiges Banner mit Hostname, IP, AdGuard-Adresse, ggf. Einrichtungsassistent, Web-Konsole und eingesteckte USB-Sticks; **rote Warnung, solange das Standardpasswort aktiv ist**; zeigt während der Ersteinrichtung den Fortschritt | `scripts/adguard-banner.sh`, `rootfs/etc/systemd/system/adguard-banner.*` |
+| Begrüßung (nach Login, erneut mit `status`) | AdGuard-Logo, Gerät, installierte Version, Systemstatus mit RAM-/Speicher-Balken, Temperatur, AdGuard-Status, Web-Konsole, Auto-Update (aktiv + letzter Lauf), Auto-Neustart, letztes Backup, USB-Stick (frei/belegt, Backups), wichtigste Befehle | `rootfs/etc/update-motd.d/99-custom-motd` |
 | Logs begrenzen | systemd-Journal max. 200 MB / 1 Monat, Älteres wird automatisch gelöscht | `rootfs/etc/systemd/journald.conf.d/adguard.conf` |
 | Automatische Updates | `unattended-upgrades` (Debian + Security), entfernt alte Kernel, **Neustart zur eingestellten Uhrzeit** (Standard 04:00) falls nötig | `rootfs/etc/apt/apt.conf.d/20auto-upgrades`, `52unattended-upgrades-local` |
 | Regelmäßiger Neustart | täglich oder wöchentlich zur gleichen Uhrzeit (empfohlen), wird in `adguard-setup` abgefragt | `scripts/adguard-setup.sh` |
@@ -110,7 +110,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 | zram-Swap | komprimierter Swap im RAM (50 %), schont die eMMC | `rootfs/etc/default/zramswap` |
 | Power-Taste | kurzer Druck fährt sauber herunter | `rootfs/etc/systemd/logind.conf.d/adguard.conf` |
 | Wyse-Fix (**nur Wyse 3040**) | DMA-Treiber `dw_dmac` gesperrt: Ohne den Fix hängt der Wyse 3040 beim Herunterfahren/Neustarten und schaltet sich nicht aus. Wird nur eingespielt, wenn das Gerät erkannt wird. | `hardware/wyse3040/etc/modprobe.d/wyse-fix.conf` |
-| Grundeinrichtung | Hostname, Neustart-Plan, optional Cockpit, DHCP/feste IP; startet automatisch beim ersten Login | `scripts/adguard-setup.sh` → `sudo adguard-setup`, `rootfs/etc/profile.d/adguard-setup.sh` |
+| Grundeinrichtung | Backup übernehmen (bei Neuinstallation), Hostname, Passwort, Neustart-Plan, optional Cockpit, DHCP/feste IP; startet automatisch beim ersten Login | `scripts/adguard-setup.sh` → `sudo adguard-setup`, `rootfs/etc/profile.d/adguard-setup.sh` |
 
 Unter `rootfs/` liegen nur **eigene Dateien bzw. Drop-ins** (`*.conf.d/`,
 `*-local`), nie komplette Kopien von Paketdateien. So bleiben Debian-Updates
@@ -161,7 +161,7 @@ eingesteckt), wartet die Einrichtung darauf; der Anmeldebildschirm zeigt dann
 │   ├── adguard-setup.sh                 # Hostname / Passwort / Neustart / Cockpit / IP
 │   ├── adguard-banner.sh                # erzeugt den Login-Banner (/etc/issue)
 │   ├── adguard-backup.sh                # Backups der AdGuard-Einstellungen
-│   ├── adguard-usb.sh                   # USB-Stick-Meldungen + Infos für "status"
+│   ├── adguard-usb.sh                   # USB-Stick-Infos für Login-Banner + "status"
 │   └── status.sh                        # Befehl "status": Übersicht erneut anzeigen
 ├── rootfs/                              # Dateien 1:1 wie auf dem System (alle Geräte)
 │   └── etc/ ...                         #   z.B. rootfs/etc/fail2ban/jail.local
@@ -189,7 +189,7 @@ cd /mnt/c/Users/<name>/Documents/git/AdGuard_Wyse3040
 docker run --rm -v "${PWD}:/w" -w /w debian:13 bash -c "apt-get update -qq && apt-get install -y -qq xorriso curl && ./installer/build-iso.sh"
 ```
 
-Ergebnis: `build/adguard-wyse3040-<version>-debian-13.x.iso` (ca. 800 MB). Die Version stammt aus dem Git-Tag (z.B. `v0.6`). Der Ordner
+Ergebnis: `build/adguard-wyse3040-<version>-debian-13.x.iso` (ca. 800 MB). Die Version stammt aus dem Git-Tag (z.B. `v1.0.0`). Der Ordner
 `build/` wird nicht eingecheckt.
 
 > Die ISO nach jeder Änderung am Repo neu bauen. Sie enthält immer den Stand,
@@ -201,8 +201,8 @@ GitHub baut die ISO selbst ([`.github/workflows/build-iso.yml`](.github/workflow
 Für eine neue Version einen Tag setzen und pushen:
 
 ```bash
-git tag v1.1
-git push origin v1.1
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
 Nach ca. 5 Minuten liegt die ISO unter **Releases**. Ein Test-Build ohne Release
@@ -476,18 +476,24 @@ Was sich je nach Hardware anpasst:
 
 ## Ausblick
 
-Das Projekt befindet sich in der **Testphase** (Versionen `v0.x`). Nach
-erfolgreichem Test folgt Version **1.0**.
+Version **1.0** ist die erste stabile Version (auf Deutsch, eingestellt auf
+Deutschland). Als Nächstes geplant:
 
-Danach geplant:
-
-- **Englische / internationale Version:** ein gemeinsamer USB-Stick mit Auswahl
-  der Sprache im Bootmenü (Deutsch oder Englisch). Dabei berücksichtigt:
-  - **Texte:** alle Bildschirmtexte und Menüs zweisprachig, README auf Englisch
-  - **Tastaturlayout:** passend zur Sprache (z.B. deutsch / US), änderbar
-  - **Region:** Zeitzone sowie Datums- und Zahlenformat wählbar statt fest Berlin
-  - **Zeitserver:** passend zur Region (z.B. `de.pool.ntp.org`,
-    `europe.pool.ntp.org` oder weltweit `pool.ntp.org`)
+- **Mehrsprachige / internationale Version:** ein gemeinsamer USB-Stick, Sprache
+  und Land werden im Bootmenü gewählt (Englisch vorausgewählt). Jede Zeile nennt
+  Sprache, Tastatur und Zeitzone ausdrücklich, z.B.
+  `English | Keyboard: German (de) | Time zone: Europe/Berlin`.
+  - **Texte** aller Menüs, Meldungen, Login-Banner und Statusanzeige kommen aus
+    Sprachdateien (`lang/de.sh`, `lang/en.sh`). Fehlt eine Übersetzung, erscheint
+    der englische Text.
+  - **Land** (`region/de_DE.conf`, `region/en_GB.conf` …) legt Tastatur,
+    Zeitzone, Datums-/Zahlenformat und Zeitserver fest.
+  - **Weitere Sprachen und Länder** lassen sich ohne Programmänderung ergänzen:
+    Datei anlegen, das Bootmenü erkennt sie beim Bauen automatisch. Beiträge
+    gerne als Pull Request.
+  - Die **README** wird Englisch, die deutsche Fassung bleibt als `README.de.md`.
+  - **Backups** bleiben sprachunabhängig und lassen sich zwischen den
+    Sprachversionen übertragen.
 
 ## Lizenz & Rechtliches
 
