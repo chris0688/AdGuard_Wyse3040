@@ -105,7 +105,21 @@ else
 fi
 AGH_VERSION=$(/opt/AdGuardHome/AdGuardHome --version 2>/dev/null | grep -oE 'v[0-9][0-9.]*' | head -1)
 if [[ -f /opt/AdGuardHome/AdGuardHome.yaml ]]; then
+    # Port des Webinterface (im Einrichtungsassistenten gewählt), bei 80 ohne Angabe
+    AGH_PORT=$(awk '/^[^ #]/ { http = ($1 == "http:") }
+                    http && $1 == "address:" { gsub(/"/, "", $2); sub(/.*:/, "", $2); print $2; exit }' \
+               /opt/AdGuardHome/AdGuardHome.yaml 2>/dev/null)
     AGH_URL="http://${IP_ADDR}"
+    if [[ $AGH_PORT =~ ^[0-9]+$ && $AGH_PORT != 80 ]]; then
+        AGH_URL+=":${AGH_PORT}"
+        # Firewall lässt nur 80/443 durch (scripts/install.sh) – anderen Port prüfen.
+        # Wird bei jedem Aufruf neu geprüft, der Hinweis verschwindet nach dem Öffnen.
+        UFW_STATUS=$(ufw status 2>/dev/null)
+        if [[ $UFW_STATUS == "Status: active"* ]] \
+           && ! grep -qE "^${AGH_PORT}(/tcp)?[[:space:]]+ALLOW" <<< "$UFW_STATUS"; then
+            AGH_URL+="${NC}\n                 ${YELLOW}Firewall: Port ${AGH_PORT} nicht offen –${NC} ${WHITE}sudo ufw allow ${AGH_PORT}/tcp${NC}"
+        fi
+    fi
 else
     AGH_URL="http://${IP_ADDR}:3000  ${YELLOW}(Ersteinrichtung offen)${NC}"
 fi

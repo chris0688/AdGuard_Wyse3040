@@ -26,6 +26,15 @@ pending_users="$(awk -F: '
 cockpit=0
 systemctl is-enabled --quiet cockpit.socket 2>/dev/null && cockpit=1
 
+# Port des Webinterface (im Einrichtungsassistenten gewählt), bei 80 ohne Angabe.
+# Der Banner wird bei Änderungen an der AdGuard-Konfiguration neu erzeugt.
+agh_port=""
+if [[ -f $AGH_CONF ]]; then
+    agh_port="$(awk '/^[^ #]/ { http = ($1 == "http:") }
+                     http && $1 == "address:" { gsub(/"/, "", $2); sub(/.*:/, "", $2); print $2; exit }' "$AGH_CONF")"
+    [[ $agh_port =~ ^[0-9]+$ && $agh_port != 80 ]] && agh_port=":$agh_port" || agh_port=""
+fi
+
 {
     echo
     echo "$LINE"
@@ -33,7 +42,7 @@ systemctl is-enabled --quiet cockpit.socket 2>/dev/null && cockpit=1
     echo "$LINE"
     echo '\e{lightblue}    Hostname:         \e{lightcyan}\n\e{reset}'
     echo '\e{lightblue}    IP-Adresse:       \e{lightcyan}\4\e{reset}'
-    echo '\e{lightblue}    AdGuard:          \e{lightcyan}http://\4\e{reset}'
+    echo "\\e{lightblue}    AdGuard:          \\e{lightcyan}http://\\4$agh_port\\e{reset}"
     if [[ ! -f $AGH_CONF ]]; then
         echo '\e{lightblue}    Ersteinrichtung:  \e{lightcyan}http://\4:3000\e{reset}  \e{yellow}(AdGuard noch nicht eingerichtet)\e{reset}'
     fi

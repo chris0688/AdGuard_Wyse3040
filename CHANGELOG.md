@@ -4,6 +4,13 @@ Neueste Version oben. Diese Liste zeigt auch `sudo adguard-setup --update` vor
 einem Update an. Änderungen, die nur bei einer **Neuinstallation** wirken (z.B.
 Installer, Partitionierung), sind entsprechend gekennzeichnet.
 
+## v1.0.1
+
+- Login-Banner und `status` zeigen die AdGuard-Adresse mit dem im
+  Einrichtungsassistenten gewählten Port (bei Port 80 wie bisher ohne).
+- `status` weist darauf hin, wenn dieser Port in der Firewall nicht offen ist,
+  und nennt den Befehl zum Öffnen.
+
 ## v1.0.0
 
 - Erste stabile Version (Deutsch). Inhaltlich gleich wie v0.9.2, auf dem

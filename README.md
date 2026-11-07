@@ -68,7 +68,9 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
      (siehe [`adguard-setup`](#grundeinrichtung-adguard-setup)).
 7. Im Browser **`http://<IP>:3000`** öffnen und den AdGuard-Einrichtungsassistenten
    durchklicken (Admin-Benutzer mit **sicherem Passwort** anlegen, Webinterface auf
-   Port 80, DNS auf Port 53).
+   Port 80, DNS auf Port 53). Einen anderen Port fürs Webinterface zeigen Banner
+   und `status` an; die Firewall muss dafür von Hand geöffnet werden, `status`
+   nennt dann den Befehl.
 8. Im **Router** die IP des Wyse als DNS-Server eintragen. Fertig. 🎉
 
 ## Sicherheit
