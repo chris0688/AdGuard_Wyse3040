@@ -4,6 +4,12 @@ Neueste Version oben. Diese Liste zeigt auch `sudo adguard-setup --update` vor
 einem Update an. Änderungen, die nur bei einer **Neuinstallation** wirken (z.B.
 Installer, Partitionierung), sind entsprechend gekennzeichnet.
 
+## v1.0.0
+
+- Erste stabile Version (Deutsch). Inhaltlich gleich wie v0.9.2, auf dem
+  Dell Wyse 3040 vollständig getestet: Installation, Grundeinrichtung, Backup
+  und Wiederherstellung (auch per USB-Stick), Neustart-Plan, Projekt-Update.
+
 ## v0.9.2
 
 - Fehler behoben: `adguard-setup --update` meldete am Ende „tmp ist nicht
