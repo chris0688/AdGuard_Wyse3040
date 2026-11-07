@@ -7,13 +7,16 @@
 #                              Anzahl Backups im Ordner AdGuard-Backup/ (für "status")
 #
 # Intern:
-#   adguard-usb issue          Zeilen "USB-Stick" für den Login-Banner (adguard-banner)
+#   adguard-usb issue          "NAME|(DATEISYSTEM, GRÖSSE)" je Stick für den
+#                              Login-Banner (adguard-banner formatiert die Zeilen)
 #   adguard-usb event add|remove GERÄT [NAME]
 #                              (von udev, 90-adguard-usb.rules) Eintrag ins
 #                              Systemprotokoll, danach Login-Banner neu erzeugen
 #
 # Für frei/belegt wird ein nicht eingehängter Stick kurz NUR LESEND eingehängt.
 set -uo pipefail
+export LC_ALL=C.UTF-8   # feste Zahlenformate (lsblk/df), Dezimaltrennzeichen setzt die Region
+. /usr/local/share/adguard/i18n.sh
 
 USB_DIR_NAME="AdGuard-Backup"
 
@@ -29,20 +32,19 @@ list_usb() {
             *)    continue ;;
         esac
         [[ $tran == usb ]] || continue
-        echo "$NAME|${LABEL:-ohne Namen}|$FSTYPE|$SIZE"
+        echo "$NAME|${LABEL:-$T_USB_NO_NAME}|$FSTYPE|$(adguard_decimal "$SIZE")"
     done < <(lsblk -Ppno NAME,PKNAME,TYPE,FSTYPE,SIZE,LABEL 2>/dev/null)
 }
 
-# Bytes -> "6,9 GB" bzw. "512 MB"
+# Bytes -> "6.9 GB" bzw. "512 MB" (mit dem Dezimaltrennzeichen der Region)
 human() {
-    awk -v b="$1" 'BEGIN {
-        if (b >= 1e9) s = sprintf("%.1f GB", b / 1e9); else s = sprintf("%d MB", b / 1e6)
-        gsub(/\./, ",", s); print s
-    }'
+    adguard_decimal "$(awk -v b="$1" 'BEGIN {
+        if (b >= 1e9) printf "%.1f GB\n", b / 1e9; else printf "%d MB\n", b / 1e6
+    }')"
 }
 
 # info_line GERÄT NAME DATEISYSTEM GRÖSSE
-# -> "HP_TOOLS (vfat) – 6,9 GB frei von 7,5 GB – 3 Backups"
+# -> "HP_TOOLS (vfat) – 6.9 GB free of 7.5 GB – 3 backups"
 info_line() {
     local dev="$1" label="$2" fs="$3" size="$4" mnt tmp="" opts total used avail n text
     text="$label ($fs)"
@@ -56,19 +58,23 @@ info_line() {
         if ! timeout 10 mount -o "$opts" "$dev" "$tmp" 2>/dev/null \
            && ! timeout 10 mount -t ntfs3 -o "$opts" "$dev" "$tmp" 2>/dev/null; then
             rmdir "$tmp"
-            echo "$text – $size, nicht lesbar"
+            echo "$text – $size, $T_USB_UNREADABLE"
             return
         fi
         mnt="$tmp"
     fi
 
     read -r total used avail < <(df -B1 --output=size,used,avail "$mnt" | awk 'NR==2')
-    text+=" – $(human "$avail") frei von $(human "$total")"
+    text+=" – $(printf "$T_USB_FREE_OF" "$(human "$avail")" "$(human "$total")")"
     if [[ -d $mnt/$USB_DIR_NAME ]]; then
         n=$(find "$mnt/$USB_DIR_NAME" -maxdepth 1 -name '*.yaml' | wc -l)
-        if (( n == 1 )); then text+=" – 1 Backup"; else text+=" – $n Backups"; fi
+        if (( n == 1 )); then
+            text+=" – $T_USB_BACKUPS_ONE"
+        else
+            text+=" – $(printf "$T_USB_BACKUPS_MANY" "$n")"
+        fi
     else
-        text+=" – keine Backups"
+        text+=" – $T_USB_BACKUPS_NONE"
     fi
 
     if [[ -n $tmp ]]; then
@@ -84,12 +90,11 @@ cmd_info() {
     done < <(list_usb)
 }
 
-# Zeilen für den Login-Banner (ohne Einhängen, nur Name und Größe);
-# adguard-banner baut sie in den Kasten mit Hostname/IP ein
+# Daten für den Login-Banner (ohne Einhängen, nur Name und Größe)
 cmd_issue() {
     local d l f s
     while IFS='|' read -r d l f s; do
-        echo "\\e{lightblue}    USB-Stick:        \\e{lightcyan}$l\\e{reset} ($f, $s)"
+        echo "$l|($f, $s)"
     done < <(list_usb)
 }
 
@@ -101,13 +106,13 @@ cmd_event() {
     case "$action" in
         add)
             sleep 1   # Stick erst fertig erkennen lassen
-            msg="USB-Stick eingesteckt: ${label:-ohne Namen} ($name)"
+            msg="$(printf "$T_USB_PLUGGED" "${label:-$T_USB_NO_NAME} ($name)")"
             while IFS='|' read -r d l f s; do
-                [[ $d == "/dev/$name" ]] && msg="USB-Stick eingesteckt: $(info_line "$d" "$l" "$f" "$s")"
+                [[ $d == "/dev/$name" ]] && msg="$(printf "$T_USB_PLUGGED" "$(info_line "$d" "$l" "$f" "$s")")"
             done < <(list_usb)
             ;;
         remove)
-            msg="USB-Stick getrennt: ${label:-ohne Namen} ($name)" ;;
+            msg="$(printf "$T_USB_REMOVED" "${label:-$T_USB_NO_NAME} ($name)")" ;;
         *)  return 2 ;;
     esac
     logger -t adguard-usb "$msg"
@@ -115,14 +120,14 @@ cmd_event() {
 }
 
 if [[ $EUID -ne 0 ]]; then
-    echo "Bitte als root ausführen: sudo adguard-usb ${1:-info}" >&2
+    printf "$T_NEED_ROOT\n" "adguard-usb ${1:-info}" >&2
     exit 1
 fi
 
 case "${1:-info}" in
     info)  cmd_info ;;
     issue) cmd_issue ;;
-    event) [[ $# -ge 3 ]] || { echo "Aufruf: adguard-usb event add|remove GERÄT [NAME]" >&2; exit 2; }
+    event) [[ $# -ge 3 ]] || { echo "Usage: adguard-usb event add|remove DEVICE [NAME]" >&2; exit 2; }
            cmd_event "$2" "$3" "${4:-}" ;;
-    *)     echo "Aufruf: adguard-usb [info|issue]" >&2; exit 2 ;;
+    *)     echo "Usage: adguard-usb [info|issue]" >&2; exit 2 ;;
 esac

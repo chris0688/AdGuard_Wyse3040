@@ -18,7 +18,10 @@
 # Gesichert werden:
 #   AdGuardHome-<datum>.yaml   AdGuard-Einstellungen, die letzten KEEP Versionen
 #   adguard-setup.conf         Einstellungen aus adguard-setup (nur der aktuelle Stand)
+#
+# Texte: lang/<sprache>.sh, Abschnitt T_BACKUP_* (siehe scripts/i18n.sh)
 set -euo pipefail
+. /usr/local/share/adguard/i18n.sh
 
 AGH_CONF="/opt/AdGuardHome/AdGuardHome.yaml"
 AGH_SERVICE="AdGuardHome"
@@ -31,6 +34,9 @@ USB_KEEP=30
 info() { printf '\033[1;34m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m[!] %s\033[0m\n' "$*"; }
 err()  { printf '\033[1;31m[x] %s\033[0m\n' "$*" >&2; }
+
+# t "TEXT" ARGUMENTE... – übersetzten Text mit Platzhaltern ausgeben (ohne Zeilenende)
+t() { local f="$1"; shift; printf -- "$f" "$@"; }
 
 # ---------------------------------------------------------------- Sichern
 
@@ -47,7 +53,7 @@ backup_now() {
     local ask="${1:-}"
     backup_setup_conf
     if [[ ! -f $AGH_CONF ]]; then
-        echo "AdGuard ist noch nicht eingerichtet – nichts zu sichern."
+        echo "$T_BACKUP_AGH_NOT_SET_UP"
         return 1
     fi
     mkdir -p "$BACKUP_DIR"
@@ -56,23 +62,15 @@ backup_now() {
     local newest
     newest="$(list_backups | head -n1)"
     if [[ -n $newest ]] && cmp -s "$AGH_CONF" "$newest"; then
-        echo "Keine Änderungen seit der letzten Sicherung ($(pretty_date "$newest"))."
+        t "$T_BACKUP_UNCHANGED\n" "$(pretty_date "$newest")"
         [[ $ask == --ask ]] || return 1
-        local a
-        while true; do
-            read -rp "Trotzdem eine neue Sicherung anlegen? [j/N]: " a
-            case "${a,,}" in
-                j|ja|y|yes) break ;;
-                ""|n|nein|no) return 1 ;;
-                *) warn "Bitte j (ja) oder n (nein) eingeben." ;;
-            esac
-        done
+        adguard_yesno "$T_BACKUP_ANYWAY" n || return 1
     fi
 
     local target
     target="$BACKUP_DIR/AdGuardHome-$(date '+%Y-%m-%d_%H%M%S').yaml"
     install -m 600 "$AGH_CONF" "$target"
-    echo "Gesichert: $(basename "$target")"
+    t "$T_BACKUP_SAVED\n" "$(basename "$target")"
 
     # Nur die neuesten KEEP Versionen behalten
     list_backups | tail -n +$((KEEP + 1)) | xargs -r rm -f
@@ -86,17 +84,17 @@ backup_setup_conf() {
     chmod 700 "$BACKUP_DIR"
     if ! cmp -s "$SETUP_CONF" "$BACKUP_DIR/adguard-setup.conf"; then
         install -m 600 "$SETUP_CONF" "$BACKUP_DIR/adguard-setup.conf"
-        echo "Systemeinstellungen (adguard-setup) gesichert."
+        echo "$T_BACKUP_SETTINGS_SAVED"
     fi
 }
 
 # ---------------------------------------------------------------- Anzeige / Auswahl
 
-# "AdGuardHome-2026-10-18_033000.yaml" -> "18.10.2026 03:30"
+# "AdGuardHome-2026-10-18_033000.yaml" -> "18.10.2026 03:30" (Format der Region)
 pretty_date() {
     local n="${1##*AdGuardHome-}"
     n="${n%.yaml}"
-    echo "${n:8:2}.${n:5:2}.${n:0:4} ${n:11:2}:${n:13:2}"
+    adguard_date -d "${n:0:10} ${n:11:2}:${n:13:2}"
 }
 
 # Anzeigename einer Sicherungsdatei (auch für umbenannte Dateien auf dem Stick)
@@ -106,7 +104,7 @@ describe_file() {
     if [[ $b =~ ^AdGuardHome-[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}\.yaml$ ]]; then
         pretty_date "$1"
     else
-        echo "$b  (geändert $(date -r "$1" '+%d.%m.%Y %H:%M'))"
+        t "%s  ($T_BACKUP_MODIFIED)\n" "$b" "$(adguard_date -r "$1")"
     fi
 }
 
@@ -116,14 +114,14 @@ show_list() {
     local f
     mapfile -t BACKUPS < <(list_backups)
     if (( ${#BACKUPS[@]} == 0 )); then
-        echo "Noch keine Sicherungen vorhanden."
+        echo "$T_BACKUP_NONE_YET"
         return
     fi
-    echo "Gesicherte Versionen (neueste zuerst):"
+    echo "$T_BACKUP_LIST_TITLE"
     for f in "${BACKUPS[@]}"; do
-        printf '   •  %s   %6s\n' "$(pretty_date "$f")" "$(du -h "$f" | cut -f1)"
+        printf '   •  %s   %6s\n' "$(pretty_date "$f")" "$(adguard_decimal "$(LC_ALL=C.UTF-8 du -h "$f" | cut -f1)")"
     done
-    [[ -f $BACKUP_DIR/adguard-setup.conf ]] && echo "  + Systemeinstellungen (adguard-setup)"
+    [[ -f $BACKUP_DIR/adguard-setup.conf ]] && echo "  + $T_BACKUP_SYSTEM_SETTINGS"
     return 0
 }
 
@@ -140,13 +138,13 @@ pick() {
         printf '  %d)  %s\n' "$i" "$line"
         i=$((i + 1))
     done
-    echo "  0)  zurück"
+    echo "  0)  $T_BACK"
     while true; do
         if [[ -n $all ]]; then
-            read -rp "Auswahl [Enter = alle]: " nr
+            read -rp "$T_CHOICE [$T_BACKUP_ENTER_ALL]: " nr
             [[ -z $nr ]] && { PICK="ALLE"; return 0; }
         else
-            read -rp "Auswahl [0]: " nr
+            read -rp "$T_CHOICE [0]: " nr
             nr="${nr:-0}"
         fi
         [[ $nr == 0 ]] && return 1
@@ -154,7 +152,7 @@ pick() {
             PICK="$nr"
             return 0
         fi
-        warn "Bitte eine Zahl von 0 bis $# eingeben."
+        warn "$(t "$T_NUMBER_RANGE" 0 $#)"
     done
 }
 
@@ -163,9 +161,9 @@ pick() {
 choose_backup() {
     local f lines=()
     for f in "${BACKUPS[@]}"; do
-        lines+=("$(printf '%s   %6s' "$(pretty_date "$f")" "$(du -h "$f" | cut -f1)")")
+        lines+=("$(printf '%s   %6s' "$(pretty_date "$f")" "$(adguard_decimal "$(LC_ALL=C.UTF-8 du -h "$f" | cut -f1)")")")
     done
-    lines[0]+="   (neueste)"
+    lines[0]+="   ($T_BACKUP_NEWEST)"
     pick "$1" ${2:+"$2"} "${lines[@]}" || return 1
     if [[ $PICK == ALLE ]]; then
         CHOSEN="ALLE"
@@ -177,28 +175,24 @@ choose_backup() {
 # ---------------------------------------------------------------- Wiederherstellen
 
 restore() {
-    choose_backup "Welche Version wiederherstellen?" || return 0
+    choose_backup "$T_BACKUP_Q_RESTORE" || return 0
     restore_file "$CHOSEN" "$(pretty_date "$CHOSEN")" || true
 }
 
 # restore_file <datei> <anzeigename> [--yes] – spielt eine Konfiguration ein.
 # Rückgabe 0 = AdGuard läuft mit der neuen Konfiguration.
 restore_file() {
-    local file="$1" a
+    local file="$1"
     if [[ ${3:-} != --yes ]]; then
-        echo "Wiederherstellen: $2"
-        while true; do
-            read -rp "AdGuard wird kurz neu gestartet. Fortfahren? [j/N]: " a
-            case "${a,,}" in
-                j|ja|y|yes) break ;;
-                ""|n|nein|no) echo "Abgebrochen."; return 0 ;;
-                *) warn "Bitte j (ja) oder n (nein) eingeben." ;;
-            esac
-        done
+        t "$T_BACKUP_RESTORING\n" "$2"
+        if ! adguard_yesno "$T_BACKUP_Q_CONTINUE" n; then
+            echo "$T_BACKUP_CANCELLED"
+            return 0
+        fi
     fi
 
     if ! grep -q '^dns:' "$file"; then
-        err "Das sieht nicht nach einer AdGuard-Konfiguration aus – abgebrochen."
+        err "$T_BACKUP_NOT_AGH_CONF"
         return 1
     fi
 
@@ -210,38 +204,38 @@ restore_file() {
     systemctl start "$AGH_SERVICE" || true
     sleep 3
     if systemctl is-active --quiet "$AGH_SERVICE"; then
-        info "Wiederhergestellt. AdGuard läuft."
+        info "$T_BACKUP_RESTORED"
         return 0
     fi
 
     local previous
     previous="$(list_backups | head -n1)"
     if [[ -n $previous ]]; then
-        err "AdGuard startet mit dieser Version nicht – stelle vorherigen Stand wieder her."
+        err "$T_BACKUP_START_FAILED_ROLLBACK"
         systemctl stop "$AGH_SERVICE" || true
         install -m 600 "$previous" "$AGH_CONF"
         systemctl start "$AGH_SERVICE" || true
     else
-        err "AdGuard startet mit dieser Version nicht. Details: journalctl -u $AGH_SERVICE"
+        err "$(t "$T_BACKUP_START_FAILED" "journalctl -u $AGH_SERVICE")"
     fi
     return 1
 }
 
 export_for_download() {
-    choose_backup "Welche Version zum Download bereitlegen?" || return 0
+    choose_backup "$T_BACKUP_Q_EXPORT" || return 0
     local user="${SUDO_USER:-}"
     if [[ -z $user || $user == root ]]; then
-        warn "Bitte mit sudo als normaler Benutzer aufrufen (z.B. adguard)."
+        warn "$T_BACKUP_EXPORT_NEED_SUDO"
         return 0
     fi
     local home target
     home="$(getent passwd "$user" | cut -d: -f6)"
     target="$home/$(basename "$CHOSEN")"
     install -m 600 -o "$user" -g "$(id -gn "$user")" "$CHOSEN" "$target"
-    info "Bereitgelegt: $target"
-    echo "Auf den PC holen z.B. mit WinSCP oder:"
+    info "$(t "$T_BACKUP_EXPORTED" "$target")"
+    echo "$T_BACKUP_EXPORT_HOW"
     echo "  scp ${user}@$(hostname -I | awk '{print $1}'):$(basename "$target") ."
-    echo "Danach auf dem Gerät wieder löschen: rm ~/$(basename "$target")"
+    t "$T_BACKUP_EXPORT_CLEANUP\n" "rm ~/$(basename "$target")"
 }
 
 # ---------------------------------------------------------------- USB-Stick: Grundlagen
@@ -259,8 +253,8 @@ find_usb_partitions() {
             *)    continue ;;
         esac
         [[ $tran == usb ]] || continue
-        echo "$NAME|${LABEL:-ohne Namen} ($FSTYPE, $SIZE)"
-    done < <(lsblk -Ppno NAME,PKNAME,TYPE,FSTYPE,SIZE,LABEL)
+        echo "$NAME|${LABEL:-$T_USB_NO_NAME} ($FSTYPE, $(adguard_decimal "$SIZE"))"
+    done < <(LC_ALL=C.UTF-8 lsblk -Ppno NAME,PKNAME,TYPE,FSTYPE,SIZE,LABEL)
 }
 
 # mount_dev <gerät> – hängt ein (falls nötig) und setzt MNT und MOUNTED_BY_US.
@@ -285,9 +279,9 @@ umount_dev() {
     (( MOUNTED_BY_US )) || return 0
     if umount "$MNT"; then
         rmdir "$MNT" || true
-        [[ ${1:-} == leise ]] || echo "USB-Stick ausgehängt – er kann stecken bleiben oder gefahrlos abgezogen werden."
+        [[ ${1:-} == leise ]] || echo "$T_BACKUP_USB_UNMOUNTED"
     else
-        warn "USB-Stick konnte nicht ausgehängt werden – vor dem Abziehen: sudo umount $MNT"
+        warn "$(t "$T_BACKUP_USB_UNMOUNT_FAILED" "sudo umount $MNT")"
     fi
 }
 
@@ -296,25 +290,25 @@ select_usb() {
     local parts p lines=()
     mapfile -t parts < <(find_usb_partitions)
     if (( ${#parts[@]} == 0 )); then
-        warn "Kein USB-Stick gefunden (unterstützt: FAT32, exFAT, NTFS, ext4)."
+        warn "$T_BACKUP_USB_NONE"
         return 1
     fi
     if (( ${#parts[@]} == 1 )); then
         USB_DEV="${parts[0]%%|*}"
-        echo "USB-Stick: ${parts[0]#*|}  [$USB_DEV]"
+        echo "$T_MOTD_USB ${parts[0]#*|}  [$USB_DEV]"
         return 0
     fi
     for p in "${parts[@]}"; do
         lines+=("${p#*|}  [${p%%|*}]")
     done
-    pick "Welcher USB-Stick?" "${lines[@]}" || return 1
+    pick "$T_BACKUP_Q_WHICH_USB" "${lines[@]}" || return 1
     USB_DEV="${parts[$((PICK - 1))]%%|*}"
 }
 
 mount_usb() {
     select_usb || return 1
     if ! mount_dev "$USB_DEV"; then
-        err "USB-Stick konnte nicht eingebunden werden."
+        err "$T_BACKUP_USB_MOUNT_FAILED"
         return 1
     fi
 }
@@ -329,11 +323,11 @@ copy_into_usb_dir() {
 
 copy_to_usb() {
     if (( ${#BACKUPS[@]} == 0 )); then
-        warn "Noch keine Sicherungen vorhanden – zuerst 1) jetzt sichern."
+        warn "$T_BACKUP_COPY_NONE"
         return 0
     fi
     local files=()
-    choose_backup "Welche Version auf den USB-Stick kopieren?" --alle || return 0
+    choose_backup "$T_BACKUP_Q_COPY" --alle || return 0
     if [[ $CHOSEN == ALLE ]]; then
         files=("${BACKUPS[@]}")
     else
@@ -343,10 +337,10 @@ copy_to_usb() {
 
     mount_usb || return 0
     if copy_into_usb_dir "${files[@]}"; then
-        info "Auf den USB-Stick kopiert (Ordner $USB_DIR_NAME)."
-        echo "Bleibt der Stick stecken, wird jede neue Sicherung automatisch mit draufkopiert."
+        info "$(t "$T_BACKUP_COPIED" "$USB_DIR_NAME")"
+        echo "$T_BACKUP_COPY_AUTO_HINT"
     else
-        err "Kopieren fehlgeschlagen (Stick voll oder schreibgeschützt?)."
+        err "$T_BACKUP_COPY_FAILED"
     fi
     umount_dev
 }
@@ -357,20 +351,20 @@ restore_from_usb() {
     # Gesucht wird im Ordner AdGuard-Backup/ und direkt im Hauptverzeichnis des Sticks
     mapfile -t files < <(ls -1t "$MNT/$USB_DIR_NAME"/*.yaml "$MNT"/AdGuardHome*.yaml 2>/dev/null || true)
     if (( ${#files[@]} == 0 )); then
-        warn "Keine Sicherungen auf dem Stick gefunden (erwartet im Ordner $USB_DIR_NAME/)."
+        warn "$(t "$T_BACKUP_USB_NO_BACKUPS" "$USB_DIR_NAME/")"
         umount_dev
         return 0
     fi
     for f in "${files[@]}"; do
         lines+=("$(describe_file "$f")")
     done
-    lines[0]+="   (neueste)"
-    if ! pick "Welche Version vom USB-Stick wiederherstellen?" "${lines[@]}"; then
+    lines[0]+="   ($T_BACKUP_NEWEST)"
+    if ! pick "$T_BACKUP_Q_RESTORE_USB" "${lines[@]}"; then
         umount_dev leise
         return 0
     fi
     chosen="${files[$((PICK - 1))]}"
-    desc="$(describe_file "$chosen") vom USB-Stick"
+    desc="$(t "$T_BACKUP_FROM_USB" "$(describe_file "$chosen")")"
 
     # Erst lokal zwischenspeichern, damit der Stick gleich wieder frei ist
     tmp="$(mktemp)"
@@ -393,18 +387,18 @@ auto_copy_to_usb() {
         if [[ -d $dir ]]; then
             if [[ -n $newest && ! -f $dir/$(basename "$newest") ]]; then
                 if copy_into_usb_dir "$newest"; then
-                    echo "Auch auf USB-Stick kopiert: ${p#*|}"
+                    t "$T_BACKUP_AUTO_COPIED\n" "${p#*|}"
                     # Nur eigene Sicherungen aufräumen, selbst abgelegte Dateien bleiben
                     ls -1t "$dir"/AdGuardHome-*.yaml 2>/dev/null \
                         | tail -n +$((USB_KEEP + 1)) | xargs -r rm -f
                 else
-                    echo "Kopieren auf USB-Stick fehlgeschlagen: ${p#*|}" >&2
+                    t "$T_BACKUP_AUTO_COPY_FAILED\n" "${p#*|}" >&2
                 fi
             fi
             if [[ -f $BACKUP_DIR/adguard-setup.conf ]] \
                && ! cmp -s "$BACKUP_DIR/adguard-setup.conf" "$dir/adguard-setup.conf"; then
                 copy_into_usb_dir "$BACKUP_DIR/adguard-setup.conf" \
-                    && echo "Systemeinstellungen auf USB-Stick kopiert: ${p#*|}"
+                    && t "$T_BACKUP_AUTO_SETTINGS_COPIED\n" "${p#*|}"
             fi
         fi
         umount_dev leise
@@ -433,15 +427,19 @@ fetch_from_usb() {
     done < <(find_usb_partitions)
 
     [[ -n $best_name ]] || return 1
-    local extra=""
-    [[ -f $target/adguard-setup.conf ]] && extra=" + Systemeinstellungen"
-    echo "Stand $(pretty_date "$best_name")$extra, USB-Stick $best" > "$target/source.txt"
+    local text
+    if [[ -f $target/adguard-setup.conf ]]; then
+        text="$(t "$T_BACKUP_FOUND_WITH_SETTINGS" "$(pretty_date "$best_name")" "$best")"
+    else
+        text="$(t "$T_BACKUP_FOUND" "$(pretty_date "$best_name")" "$best")"
+    fi
+    echo "$text" > "$target/source.txt"
 }
 
 # ---------------------------------------------------------------- main
 
 if [[ $EUID -ne 0 ]]; then
-    err "Bitte als root ausführen: sudo adguard-backup"
+    err "$(t "$T_NEED_ROOT" adguard-backup)"
     exit 1
 fi
 
@@ -453,27 +451,27 @@ case "${1:-}" in
         auto_copy_to_usb "$(list_backups | head -n1)"
         exit 0 ;;
     --fetch-usb)
-        [[ -d ${2:-} ]] || { err "Aufruf: adguard-backup --fetch-usb VERZEICHNIS"; exit 2; }
+        [[ -d ${2:-} ]] || { err "Usage: adguard-backup --fetch-usb DIRECTORY"; exit 2; }
         fetch_from_usb "$2"
         exit $? ;;
     --restore-file)
-        [[ -f ${2:-} ]] || { err "Aufruf: adguard-backup --restore-file DATEI"; exit 2; }
+        [[ -f ${2:-} ]] || { err "Usage: adguard-backup --restore-file FILE"; exit 2; }
         restore_file "$2" "$2" --yes
         exit $? ;;
 esac
 
 while true; do
     echo
-    info "AdGuard-Einstellungen – Sicherungen ($BACKUP_DIR, es werden die letzten $KEEP behalten)"
+    info "$(t "$T_BACKUP_MENU_TITLE" "$BACKUP_DIR" "$KEEP")"
     show_list
     echo
-    echo "  1) jetzt sichern"
-    echo "  2) Version wiederherstellen"
-    echo "  3) auf USB-Stick kopieren"
-    echo "  4) von USB-Stick wiederherstellen"
-    echo "  5) Version zum Download bereitlegen (WinSCP/scp)"
-    echo "  0) beenden"
-    read -rp "Auswahl [0]: " choice
+    echo "  1) $T_BACKUP_MENU_1"
+    echo "  2) $T_BACKUP_MENU_2"
+    echo "  3) $T_BACKUP_MENU_3"
+    echo "  4) $T_BACKUP_MENU_4"
+    echo "  5) $T_BACKUP_MENU_5"
+    echo "  0) $T_BACKUP_MENU_0"
+    read -rp "$T_CHOICE [0]: " choice
     case "$choice" in
         1) backup_now --ask || true ;;
         2) (( ${#BACKUPS[@]} )) && restore ;;
@@ -481,6 +479,6 @@ while true; do
         4) restore_from_usb ;;
         5) (( ${#BACKUPS[@]} )) && export_for_download ;;
         0|"") exit 0 ;;
-        *) warn "Bitte eine Zahl von 0 bis 5 eingeben." ;;
+        *) warn "$(t "$T_NUMBER_RANGE" 0 5)" ;;
     esac
 done

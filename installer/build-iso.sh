@@ -48,17 +48,61 @@ echo "==> Stelle Repo-Dateien zusammen ..."
 STAGE="$BUILD_DIR/stage"
 rm -rf "$STAGE"
 mkdir -p "$STAGE/adguard-setup"
-cp -r "$REPO_DIR/rootfs" "$REPO_DIR/hardware" "$REPO_DIR/scripts" "$REPO_DIR/installer" "$STAGE/adguard-setup/"
+cp -r "$REPO_DIR/rootfs" "$REPO_DIR/hardware" "$REPO_DIR/scripts" "$REPO_DIR/installer" \
+      "$REPO_DIR/lang" "$REPO_DIR/region" "$STAGE/adguard-setup/"
 # Falls unter Windows ausgecheckt: Zeilenenden sicherheitshalber auf LF
 find "$STAGE" -type f -exec sed -i 's/\r$//' {} +
 chmod 755 "$STAGE"/adguard-setup/scripts/*.sh "$STAGE"/adguard-setup/rootfs/etc/update-motd.d/*
 # Version für das installierte Gerät (Anzeige in der Begrüßung)
-echo "$VERSION (Debian $DEBIAN_VERSION, gebaut $(date '+%d.%m.%Y'))" > "$STAGE/adguard-setup/VERSION"
+echo "$VERSION (Debian $DEBIAN_VERSION, $(date +%Y-%m-%d))" > "$STAGE/adguard-setup/VERSION"
 # Woher "sudo adguard-setup --update" Updates holt (bei GitHub-Builds automatisch das
 # eigene Repo, also auch bei Forks richtig; sonst Standard aus adguard-setup.sh)
 if [[ -n ${GITHUB_REPOSITORY:-} ]]; then
     echo "$GITHUB_REPOSITORY" > "$STAGE/adguard-setup/REPO"
 fi
+
+# ---------------------------------------------------------------- Bootmenü
+# Ein Installationseintrag je region/<REGION>.conf, sortiert nach ORDER (fehlt =
+# ans Ende), der erste ist im Untermenü vorausgewählt. Beschriftung aus den
+# Feldern, in der Sprache des Eintrags, z.B.
+#   "Deutsch | Tastatur: Deutsch (de) | Zeitzone: Europe/Berlin"
+echo "==> Erzeuge Bootmenü ..."
+install_entries() {
+    local f region order
+    for f in "$STAGE"/adguard-setup/region/*.conf; do
+        order="$(sed -n 's/^ORDER=//p' "$f")"
+        echo "${order:-999} $(basename "$f" .conf)"
+    done | sort -k1,1n -k2,2 | while read -r order region; do
+        (
+            f="$STAGE/adguard-setup/region/$region.conf"
+            get() { sed -n "s/^$1=//p" "$f" | tr -d '"' | head -n1; }
+            texts="$(get TEXTS)" locale="$(get LOCALE)" keymap="$(get KEYMAP)"
+            keymap_name="$(get KEYMAP_NAME)" tz="$(get TIMEZONE)"
+            for v in texts locale keymap keymap_name tz; do
+                [[ -n ${!v} ]] || { echo "region/$region.conf: $v fehlt" >&2; exit 1; }
+            done
+            # Beschriftung: englisch als Rückfall, dann die Sprache des Eintrags
+            . "$STAGE/adguard-setup/lang/en.sh"
+            [[ -f $STAGE/adguard-setup/lang/$texts.sh ]] || { echo "lang/$texts.sh fehlt (region/$region.conf)" >&2; exit 1; }
+            . "$STAGE/adguard-setup/lang/$texts.sh"
+            label="$LANG_NAME | $T_GRUB_KEYBOARD: $keymap_name ($keymap) | $T_GRUB_TIMEZONE: $tz"
+            if LC_ALL=C grep -q '[^ -~]' <<<"$label" || [[ $label == *'"'* ]]; then
+                echo "Bootmenü: nur ASCII ohne \" erlaubt: $label" >&2
+                exit 1
+            fi
+            echo "    menuentry \"$label\" {"
+            echo "        linux  /install.amd/vmlinuz auto=true priority=critical file=/cdrom/preseed.cfg locale=$locale keymap=$keymap time/zone=$tz adguard_region=$region modprobe.blacklist=dw_dmac,dw_dmac_core --- quiet"
+            echo "        initrd /install.amd/initrd.gz"
+            echo "    }"
+            echo "       $label" >&2
+        ) || exit 1
+    done
+}
+install_entries > "$STAGE/install-entries.cfg"
+[[ -s $STAGE/install-entries.cfg ]] || { echo "Keine Einträge für das Bootmenü (region/*.conf)." >&2; exit 1; }
+awk -v entries="$STAGE/install-entries.cfg" '
+    $1 == "@INSTALL_ENTRIES@" { while ((getline l < entries) > 0) print l; next }
+    { print }' "$STAGE/adguard-setup/installer/grub.cfg" > "$STAGE/grub.cfg"
 
 OUT_ISO="$BUILD_DIR/adguard-wyse3040-$VERSION-debian-$DEBIAN_VERSION.iso"
 rm -f "$OUT_ISO"
@@ -67,8 +111,8 @@ echo "==> Baue $(basename "$OUT_ISO") ..."
 # -boot_image any replay übernimmt die Bootfähigkeit (UEFI + BIOS) der Original-ISO
 xorriso -indev "$ISO_NAME" -outdev "$OUT_ISO" \
     -map "$STAGE/adguard-setup"           /adguard-setup \
-    -map "$REPO_DIR/installer/preseed.cfg" /preseed.cfg \
-    -map "$REPO_DIR/installer/grub.cfg"    /boot/grub/grub.cfg \
+    -map "$STAGE/adguard-setup/installer/preseed.cfg" /preseed.cfg \
+    -map "$STAGE/grub.cfg"                            /boot/grub/grub.cfg \
     -boot_image any replay
 
 echo

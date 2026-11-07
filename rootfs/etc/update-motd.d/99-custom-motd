@@ -1,5 +1,10 @@
 #!/bin/bash
 # Begrüßung nach dem Login: AdGuard-Logo + Systemstatus
+# Texte: /usr/local/share/adguard/lang/<sprache>.sh (siehe scripts/i18n.sh)
+
+# Zeichen statt Bytes zählen (Ausrichtung bei Umlauten), feste Zahlenformate
+export LC_ALL=C.UTF-8
+. /usr/local/share/adguard/i18n.sh
 
 # Farbdefinitionen (ANSI - AdGuard Theme)
 LIGHT_GREEN='\033[1;32m'
@@ -13,6 +18,8 @@ RED='\033[1;31m'
 NC='\033[0m'
 
 LINE="${LIGHT_GREEN}=====================================================================${NC}"
+# Breite der Bezeichnungen links (Werte stehen dann untereinander)
+LABEL_WIDTH=15
 
 # Farbe nach Auslastung: grün / gelb ab $2 / rot ab $3
 level_color() {
@@ -32,6 +39,27 @@ bar() {
     printf ']%b' "$NC"
 }
 
+# row "Bezeichnung" "Wert" – eine Zeile der Übersicht, Werte untereinander
+row() {
+    local pad=$(( LABEL_WIDTH - ${#1} ))
+    (( pad < 1 )) && pad=1
+    printf "  ${BLUE}%s${NC}%*s%b\n" "$1" "$pad" '' "$2"
+}
+
+# Laufzeit aus /proc/uptime, z.B. "1 Wo., 2 Tg., 3 Std., 4 Min."
+uptime_text() {
+    local s w d h m parts=() out
+    s=$(cut -d. -f1 /proc/uptime)
+    w=$(( s / 604800 )); d=$(( s % 604800 / 86400 ))
+    h=$(( s % 86400 / 3600 )); m=$(( s % 3600 / 60 ))
+    (( w )) && parts+=("$w $T_UNIT_WEEK")
+    (( d )) && parts+=("$d $T_UNIT_DAY")
+    (( h )) && parts+=("$h $T_UNIT_HOUR")
+    parts+=("$m $T_UNIT_MINUTE")
+    printf -v out '%s, ' "${parts[@]}"
+    echo "${out%, }"
+}
+
 # ------------------------------------------------------------ Systemdaten
 HOSTNAME=$(hostname)
 MODEL=$(cat /sys/class/dmi/id/sys_vendor /sys/class/dmi/id/product_name 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')
@@ -39,17 +67,24 @@ MODEL=$(cat /sys/class/dmi/id/sys_vendor /sys/class/dmi/id/product_name 2>/dev/n
 SETUP_VERSION=$(head -n1 /opt/adguard-setup/VERSION 2>/dev/null)
 OS=$(. /etc/os-release && echo "$PRETTY_NAME")
 KERNEL=$(uname -r)
-UPTIME=$(uptime -p | sed 's/^up //; s/weeks\?/Wo./; s/days\?/Tg./; s/hours\?/Std./; s/minutes\?/Min./')
+UPTIME=$(uptime_text)
 IP_ADDR=$(hostname -I | awk '{print $1}')
-CPU_LOAD=$(awk '{print $1", "$2", "$3}' /proc/loadavg)
+# Mit Dezimalkomma die drei Werte per Semikolon trennen (0,15; 0,20; 0,30)
+if [[ $DECIMAL == , ]]; then
+    CPU_LOAD=$(awk '{print $1"; "$2"; "$3}' /proc/loadavg | tr . ,)
+else
+    CPU_LOAD=$(awk '{print $1", "$2", "$3}' /proc/loadavg)
+fi
 
 RAM_TOTAL_MB=$(awk '/^MemTotal:/     {printf "%d", $2/1024}' /proc/meminfo)
 RAM_AVAIL_MB=$(awk '/^MemAvailable:/ {printf "%d", $2/1024}' /proc/meminfo)
 RAM_USED_MB=$(( RAM_TOTAL_MB - RAM_AVAIL_MB ))
 RAM_PCT=$(( RAM_USED_MB * 100 / RAM_TOTAL_MB ))
-RAM_TEXT=$(awk -v u="$RAM_USED_MB" -v t="$RAM_TOTAL_MB" 'BEGIN {printf "%.1f / %.1f GB", u/1024, t/1024}')
+RAM_TEXT=$(adguard_decimal "$(awk -v u="$RAM_USED_MB" -v t="$RAM_TOTAL_MB" 'BEGIN {printf "%.1f / %.1f GB", u/1024, t/1024}')")
 
 read -r DISK_TOTAL DISK_USED DISK_PCT < <(df -h --output=size,used,pcent / | awk 'NR==2 {gsub("%","",$3); print $1, $2, $3}')
+DISK_TOTAL=$(adguard_decimal "$DISK_TOTAL")
+DISK_USED=$(adguard_decimal "$DISK_USED")
 
 # CPU-Temperatur (höchster Wert aller Thermalzonen)
 TEMP=""
@@ -59,10 +94,11 @@ if compgen -G "/sys/class/thermal/thermal_zone*/temp" >/dev/null; then
 fi
 
 # Regelmäßiger Neustart (eingerichtet mit adguard-setup)
-REBOOT_PLAN="${YELLOW}nicht eingerichtet${NC}"
-if systemctl is-enabled --quiet adguard-reboot.timer 2>/dev/null; then
-    REBOOT_PLAN="$(systemctl show -p Description --value adguard-reboot.timer)"
-    REBOOT_PLAN="${REBOOT_PLAN#Neustart }"
+REBOOT_PLAN="$(adguard_reboot_text)"
+if [[ -n $REBOOT_PLAN ]]; then
+    REBOOT_PLAN="${CYAN}${REBOOT_PLAN}${NC}"
+else
+    REBOOT_PLAN="${YELLOW}${T_MOTD_NOT_SET_UP}${NC}"
 fi
 
 # Automatische Updates: aktiv? Wann zuletzt gelaufen?
@@ -70,21 +106,25 @@ UU_ENABLED=0
 eval "$(apt-config shell UU_ENABLED APT::Periodic::Unattended-Upgrade 2>/dev/null)"
 UU_STAMP=/var/lib/apt/periodic/unattended-upgrades-stamp
 if [[ $UU_ENABLED != 1 ]]; then
-    AUTO_UPDATE="${RED}deaktiviert${NC}"
+    AUTO_UPDATE="${RED}${T_MOTD_UU_DISABLED}${NC}"
 elif [[ -f $UU_STAMP ]]; then
-    AUTO_UPDATE="${LIGHT_GREEN}aktiv${NC} ${GRAY}–${NC} ${CYAN}zuletzt $(date -r "$UU_STAMP" '+%d.%m.%Y %H:%M')${NC}"
+    AUTO_UPDATE="${LIGHT_GREEN}${T_MOTD_UU_ACTIVE}${NC} ${GRAY}–${NC} ${CYAN}$(printf "$T_MOTD_LAST" "$(adguard_date -r "$UU_STAMP")")${NC}"
 else
-    AUTO_UPDATE="${LIGHT_GREEN}aktiv${NC} ${GRAY}– noch nicht gelaufen (täglich morgens)${NC}"
+    AUTO_UPDATE="${LIGHT_GREEN}${T_MOTD_UU_ACTIVE}${NC} ${GRAY}– ${T_MOTD_UU_NOT_YET}${NC}"
 fi
 
 # Sicherungen der AdGuard-Einstellungen (adguard-backup)
 BACKUP_COUNT=$(ls -1 /var/backups/adguard/AdGuardHome-*.yaml 2>/dev/null | wc -l)
 if (( BACKUP_COUNT > 0 )); then
-    BACKUP_LAST=$(date -r "$(ls -1t /var/backups/adguard/AdGuardHome-*.yaml | head -n1)" '+%d.%m.%Y %H:%M')
-    if (( BACKUP_COUNT == 1 )); then BACKUP_WORD="Version"; else BACKUP_WORD="Versionen"; fi
-    BACKUP_INFO="${CYAN}zuletzt ${BACKUP_LAST}${NC} ${GRAY}(${BACKUP_COUNT} ${BACKUP_WORD})${NC}"
+    BACKUP_LAST=$(adguard_date -r "$(ls -1t /var/backups/adguard/AdGuardHome-*.yaml | head -n1)")
+    if (( BACKUP_COUNT == 1 )); then
+        BACKUP_N="$T_MOTD_BACKUP_ONE"
+    else
+        BACKUP_N="$(printf "$T_MOTD_BACKUP_MANY" "$BACKUP_COUNT")"
+    fi
+    BACKUP_INFO="${CYAN}$(printf "$T_MOTD_LAST" "$BACKUP_LAST")${NC} ${GRAY}(${BACKUP_N})${NC}"
 elif [[ -f /opt/AdGuardHome/AdGuardHome.yaml ]]; then
-    BACKUP_INFO="${GRAY}noch keine – erfolgt täglich automatisch bei Änderungen${NC}"
+    BACKUP_INFO="${GRAY}${T_MOTD_BACKUP_NONE}${NC}"
 else
     BACKUP_INFO="${GRAY}–${NC}"
 fi
@@ -99,17 +139,18 @@ systemctl is-enabled --quiet cockpit.socket 2>/dev/null && WEBCONSOLE="https://$
 
 # AdGuard-Status
 if systemctl is-active --quiet AdGuardHome 2>/dev/null; then
-    AGH_STATE="${LIGHT_GREEN}● läuft${NC}"
+    AGH_STATE="${LIGHT_GREEN}● ${T_MOTD_RUNNING}${NC}"
 else
-    AGH_STATE="${RED}● gestoppt${NC}"
+    AGH_STATE="${RED}● ${T_MOTD_STOPPED}${NC}"
 fi
 AGH_VERSION=$(/opt/AdGuardHome/AdGuardHome --version 2>/dev/null | grep -oE 'v[0-9][0-9.]*' | head -1)
+AGH_FIREWALL=""
 if [[ -f /opt/AdGuardHome/AdGuardHome.yaml ]]; then
     # Port des Webinterface (im Einrichtungsassistenten gewählt), bei 80 ohne Angabe
     AGH_PORT=$(awk '/^[^ #]/ { http = ($1 == "http:") }
                     http && $1 == "address:" { gsub(/"/, "", $2); sub(/.*:/, "", $2); print $2; exit }' \
                /opt/AdGuardHome/AdGuardHome.yaml 2>/dev/null)
-    AGH_URL="http://${IP_ADDR}"
+    AGH_URL="${CYAN}http://${IP_ADDR}"
     if [[ $AGH_PORT =~ ^[0-9]+$ && $AGH_PORT != 80 ]]; then
         AGH_URL+=":${AGH_PORT}"
         # Firewall lässt nur 80/443 durch (scripts/install.sh) – anderen Port prüfen.
@@ -117,11 +158,12 @@ if [[ -f /opt/AdGuardHome/AdGuardHome.yaml ]]; then
         UFW_STATUS=$(ufw status 2>/dev/null)
         if [[ $UFW_STATUS == "Status: active"* ]] \
            && ! grep -qE "^${AGH_PORT}(/tcp)?[[:space:]]+ALLOW" <<< "$UFW_STATUS"; then
-            AGH_URL+="${NC}\n                 ${YELLOW}Firewall: Port ${AGH_PORT} nicht offen –${NC} ${WHITE}sudo ufw allow ${AGH_PORT}/tcp${NC}"
+            AGH_FIREWALL="${YELLOW}$(printf "$T_MOTD_FIREWALL_CLOSED" "$AGH_PORT")${NC} ${WHITE}sudo ufw allow ${AGH_PORT}/tcp${NC}"
         fi
     fi
+    AGH_URL+="${NC}"
 else
-    AGH_URL="http://${IP_ADDR}:3000  ${YELLOW}(Ersteinrichtung offen)${NC}"
+    AGH_URL="${CYAN}http://${IP_ADDR}:3000${NC}  ${YELLOW}(${T_MOTD_FIRST_SETUP})${NC}"
 fi
 
 # Uhrzeit per NTP synchronisiert? (falsche Uhrzeit lässt HTTPS/DoH scheitern)
@@ -138,63 +180,63 @@ echo -e "${DARK_GREEN} / ___ / /_/ / /_/ / /_/ / /_/ / /  / /_/ /  / __  / /_/ /
 echo -e "${LIGHT_GREEN}/_/  |_\\__,_/\\____/\\__,_/\\__,_/_/   \\__,_/  /_/ /_/\\____/_/ /_/ /_/\\___/${NC}"
 echo ""
 echo -e "$LINE"
-# Wochentag fest auf Deutsch (MOTD läuft nicht zwingend mit deutscher Locale)
-WEEKDAYS=(Sonntag Montag Dienstag Mittwoch Donnerstag Freitag Samstag)
-echo -e " ${WHITE}SYSTEMSTATUS${NC} ${GRAY}– ${WEEKDAYS[$(date +%w)]}, $(date '+%d.%m.%Y %H:%M')${NC}"
+echo -e " ${WHITE}${T_MOTD_TITLE}${NC} ${GRAY}– $(weekday_name "$(date +%u)"), $(adguard_date)${NC}"
 if [[ $TIME_SYNC != yes ]]; then
-    echo -e " ${RED}Uhrzeit nicht synchronisiert!${NC} ${GRAY}Prüfen mit: timedatectl${NC}"
+    echo -e " ${RED}${T_MOTD_TIME_NOT_SYNCED}${NC} ${GRAY}${T_MOTD_CHECK_WITH} timedatectl${NC}"
 fi
 echo -e "$LINE"
-echo -e "  ${BLUE}Hostname:${NC}      ${CYAN}$HOSTNAME${NC}"
-[[ -n $MODEL ]] && echo -e "  ${BLUE}Gerät:${NC}         ${CYAN}$MODEL${NC}"
-[[ -n $SETUP_VERSION ]] && echo -e "  ${BLUE}Installiert:${NC}   ${CYAN}AdGuard-Wyse3040 $SETUP_VERSION${NC}"
-echo -e "  ${BLUE}System:${NC}        ${CYAN}$OS${NC} ${GRAY}(Kernel $KERNEL)${NC}"
-echo -e "  ${BLUE}Laufzeit:${NC}      ${CYAN}$UPTIME${NC}"
-echo -e "  ${BLUE}IPv4-Adresse:${NC}  ${CYAN}$IP_ADDR${NC}"
+row "$T_MOTD_HOSTNAME" "${CYAN}$HOSTNAME${NC}"
+[[ -n $MODEL ]] && row "$T_MOTD_DEVICE" "${CYAN}$MODEL${NC}"
+[[ -n $SETUP_VERSION ]] && row "$T_MOTD_INSTALLED" "${CYAN}AdGuard-Wyse3040 $SETUP_VERSION${NC}"
+row "$T_MOTD_SYSTEM" "${CYAN}$OS${NC} ${GRAY}(Kernel $KERNEL)${NC}"
+row "$T_MOTD_UPTIME" "${CYAN}$UPTIME${NC}"
+row "$T_MOTD_IPV4" "${CYAN}$IP_ADDR${NC}"
 echo ""
-echo -e "  ${BLUE}CPU-Last:${NC}      ${CYAN}$CPU_LOAD${NC}${TEMP:+   ${GRAY}Temperatur:${NC} ${CYAN}${TEMP} °C${NC}}"
-echo -e "  ${BLUE}RAM:${NC}           $(bar "$RAM_PCT" "$RAM_COLOR") ${RAM_COLOR}${RAM_PCT}%${NC}  ${GRAY}${RAM_TEXT}${NC}"
-echo -e "  ${BLUE}Speicher:${NC}      $(bar "$DISK_PCT" "$DISK_COLOR") ${DISK_COLOR}${DISK_PCT}%${NC}  ${GRAY}${DISK_USED} / ${DISK_TOTAL}${NC}"
+row "$T_MOTD_CPU" "${CYAN}$CPU_LOAD${NC}${TEMP:+   ${GRAY}${T_MOTD_TEMP}${NC} ${CYAN}${TEMP} °C${NC}}"
+row "$T_MOTD_RAM" "$(bar "$RAM_PCT" "$RAM_COLOR") ${RAM_COLOR}${RAM_PCT}%${NC}  ${GRAY}${RAM_TEXT}${NC}"
+row "$T_MOTD_DISK" "$(bar "$DISK_PCT" "$DISK_COLOR") ${DISK_COLOR}${DISK_PCT}%${NC}  ${GRAY}${DISK_USED} / ${DISK_TOTAL}${NC}"
 echo ""
-echo -e "  ${BLUE}AdGuard Home:${NC}  ${AGH_STATE} ${GRAY}${AGH_VERSION}${NC}"
-echo -e "  ${BLUE}Webinterface:${NC}  ${CYAN}${AGH_URL}${NC}"
-[[ -n $WEBCONSOLE ]] && echo -e "  ${BLUE}Web-Konsole:${NC}   ${CYAN}${WEBCONSOLE}${NC}"
+row "$T_MOTD_AGH" "${AGH_STATE} ${GRAY}${AGH_VERSION}${NC}"
+row "$T_MOTD_WEBUI" "$AGH_URL"
+[[ -n $AGH_FIREWALL ]] && row "" "$AGH_FIREWALL"
+[[ -n $WEBCONSOLE ]] && row "$T_MOTD_WEBCONSOLE" "${CYAN}${WEBCONSOLE}${NC}"
 echo ""
-echo -e "  ${BLUE}Auto-Update:${NC}   ${AUTO_UPDATE}"
-echo -e "  ${BLUE}Auto-Neustart:${NC} ${CYAN}${REBOOT_PLAN}${NC}"
-echo -e "  ${BLUE}Backup:${NC}        ${BACKUP_INFO}"
+row "$T_MOTD_AUTOUPDATE" "$AUTO_UPDATE"
+row "$T_MOTD_AUTOREBOOT" "$REBOOT_PLAN"
+row "$T_MOTD_BACKUP" "$BACKUP_INFO"
 if [[ -n $USB_INFO ]]; then
-    USB_LABEL="USB-Stick:"
+    USB_LABEL="$T_MOTD_USB"
     while IFS= read -r line; do
-        printf "  ${BLUE}%-14s${NC} ${CYAN}%s${NC}\n" "$USB_LABEL" "$line"
+        row "$USB_LABEL" "${CYAN}${line}${NC}"
         USB_LABEL=""
     done <<< "$USB_INFO"
 else
-    echo -e "  ${BLUE}USB-Stick:${NC}     ${GRAY}keiner eingesteckt${NC}"
+    row "$T_MOTD_USB" "${GRAY}${T_MOTD_USB_NONE}${NC}"
 fi
 echo -e "$LINE"
 
 if [[ ! -f /var/lib/adguard-setup/setup.done ]]; then
-    echo -e "  ${YELLOW}Tipp:${NC} Hostname und feste IP einrichten mit:  ${WHITE}sudo adguard-setup${NC}"
+    echo -e "  ${YELLOW}${T_MOTD_TIP}${NC} ${T_MOTD_TIP_TEXT}  ${WHITE}sudo adguard-setup${NC}"
     echo -e "$LINE"
 fi
 
-echo -e "  ${YELLOW}Befehle:${NC}"
-echo -e "    ${WHITE}status${NC}                       ${GRAY}diese Übersicht erneut anzeigen${NC}"
-echo -e "    ${WHITE}sudo adguard-setup${NC}           ${GRAY}Hostname, Passwort, Neustart, Cockpit, IP${NC}"
-echo -e "    ${WHITE}sudo adguard-backup${NC}          ${GRAY}Backups verwalten, USB-Stick${NC}"
-echo -e "    ${WHITE}sudo adguard-setup --update${NC}  ${GRAY}Projekt aktualisieren (nicht AdGuard)${NC}"
+echo -e "  ${YELLOW}${T_MOTD_COMMANDS}${NC}"
+printf "    ${WHITE}%-29s${NC}${GRAY}%s${NC}\n" \
+    "status"                      "$T_MOTD_CMD_STATUS" \
+    "sudo adguard-setup"          "$T_MOTD_CMD_SETUP" \
+    "sudo adguard-backup"         "$T_MOTD_CMD_BACKUP" \
+    "sudo adguard-setup --update" "$T_MOTD_CMD_UPDATE"
 echo -e "$LINE"
 
-echo -e "  ${YELLOW}HINWEIS:${NC} ${WHITE}Änderungen am System nur vornehmen, wenn Sie dazu${NC}"
-echo -e "  ${WHITE}berechtigt sind und das nötige Fachwissen besitzen.${NC}"
+echo -e "  ${YELLOW}${T_MOTD_NOTICE}${NC} ${WHITE}${T_MOTD_NOTICE_1}${NC}"
+echo -e "  ${WHITE}${T_MOTD_NOTICE_2}${NC}"
 echo -e "$LINE"
 
 # Nach einem Projekt-Update: das Setup hat neue Fragen, die hier noch nie
 # beantwortet wurden. Ganz unten, damit es direkt über dem Prompt steht.
 if [[ -f /var/lib/adguard-setup/setup.done ]] \
    && ! /usr/local/sbin/adguard-setup --check >/dev/null 2>&1; then
-    echo -e "  ${RED}[!] NEU:${NC} ${YELLOW}Das Setup hat neue Einstellungen. Bitte ausführen:${NC}"
+    echo -e "  ${RED}${T_MOTD_NEW}${NC} ${YELLOW}${T_MOTD_NEW_TEXT}${NC}"
     echo -e "           ${WHITE}sudo adguard-setup${NC}"
     echo -e "$LINE"
 fi

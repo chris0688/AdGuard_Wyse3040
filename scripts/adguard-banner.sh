@@ -8,6 +8,9 @@
 # Läuft beim Start und automatisch bei Passwortänderung bzw. nach der
 # AdGuard-Einrichtung (adguard-banner.path).
 set -euo pipefail
+# Zeichen statt Bytes zählen (Ausrichtung bei Umlauten)
+export LC_ALL=C.UTF-8
+. /usr/local/share/adguard/i18n.sh
 
 AGH_CONF="/opt/AdGuardHome/AdGuardHome.yaml"
 
@@ -15,6 +18,14 @@ AGH_CONF="/opt/AdGuardHome/AdGuardHome.yaml"
 # Wird nur angezeigt, solange es noch aktiv ist, und nur an der lokalen Konsole.
 DEFAULT_PASSWORD="adguard"
 LINE='\e{lightgreen}  =================================================================\e{reset}'
+
+# issue_row "Bezeichnung" "Wert" ["Zusatz"] – eine Zeile im Kasten, Werte
+# untereinander. Wert darf agetty-Platzhalter enthalten (\4 = IP, \n = Hostname).
+issue_row() {
+    local pad=$(( 18 - ${#1} ))
+    (( pad < 1 )) && pad=1
+    printf '\\e{lightblue}    %s%*s\\e{lightcyan}%s\\e{reset}%s\n' "$1" "$pad" '' "$2" "${3:-}"
+}
 
 # Benutzer (UID >= 1000), die ihr Passwort beim nächsten Login ändern müssen.
 # Das setzt der Installer für das Standardpasswort (chage -d 0).
@@ -38,28 +49,31 @@ fi
 {
     echo
     echo "$LINE"
-    echo '\e{bold}\e{white}    AdGuard Home DNS-Server\e{reset}  -  \S{PRETTY_NAME}'
+    printf '\\e{bold}\\e{white}    %s\\e{reset}  -  \\S{PRETTY_NAME}\n' "$T_BANNER_TITLE"
     echo "$LINE"
-    echo '\e{lightblue}    Hostname:         \e{lightcyan}\n\e{reset}'
-    echo '\e{lightblue}    IP-Adresse:       \e{lightcyan}\4\e{reset}'
-    echo "\\e{lightblue}    AdGuard:          \\e{lightcyan}http://\\4$agh_port\\e{reset}"
+    issue_row "$T_BANNER_HOSTNAME" '\n'
+    issue_row "$T_BANNER_IP" '\4'
+    issue_row "$T_BANNER_ADGUARD" "http://\\4$agh_port"
     if [[ ! -f $AGH_CONF ]]; then
-        echo '\e{lightblue}    Ersteinrichtung:  \e{lightcyan}http://\4:3000\e{reset}  \e{yellow}(AdGuard noch nicht eingerichtet)\e{reset}'
+        issue_row "$T_BANNER_FIRST_SETUP" 'http://\4:3000' "  \\e{yellow}($T_BANNER_NOT_SET_UP)\\e{reset}"
     fi
     if (( cockpit )); then
-        echo '\e{lightblue}    Web-Konsole:      \e{lightcyan}https://\4:9090\e{reset}'
+        issue_row "$T_BANNER_WEBCONSOLE" 'https://\4:9090'
     fi
     # Eingesteckte USB-Sticks (wird beim Einstecken/Abziehen neu erzeugt)
     if [[ -x /usr/local/sbin/adguard-usb ]]; then
-        /usr/local/sbin/adguard-usb issue || true
+        while IFS='|' read -r label rest; do
+            [[ -n $label ]] && issue_row "$T_BANNER_USB" "$label" " $rest"
+        done < <(/usr/local/sbin/adguard-usb issue || true)
     fi
     echo "$LINE"
     if [[ -n $pending_users ]]; then
         echo
-        echo '\e{lightred}\e{bold}    !! SICHERHEIT: Das Standardpasswort ist noch aktiv !!\e{reset}'
-        echo "\\e{lightred}    Jetzt anmelden und ein neues Passwort setzen:\\e{reset}"
-        echo "\\e{lightred}      Benutzer: \\e{bold}$pending_users\\e{reset}\\e{lightred}   Passwort: \\e{bold}$DEFAULT_PASSWORD\\e{reset}"
-        echo '\e{lightred}    Bis dahin ist das Gerät per SSH mit diesem öffentlich bekannten Passwort erreichbar.\e{reset}'
+        printf '\\e{lightred}\\e{bold}    %s\\e{reset}\n' "$T_BANNER_PW_TITLE"
+        printf '\\e{lightred}    %s\\e{reset}\n' "$T_BANNER_PW_ACTION"
+        printf '\\e{lightred}      %s \\e{bold}%s\\e{reset}\\e{lightred}   %s \\e{bold}%s\\e{reset}\n' \
+            "$T_BANNER_PW_USER" "$pending_users" "$T_BANNER_PW_PASSWORD" "$DEFAULT_PASSWORD"
+        printf '\\e{lightred}    %s\\e{reset}\n' "$T_BANNER_PW_RISK"
     fi
     echo
 } > /etc/issue

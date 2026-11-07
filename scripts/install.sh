@@ -20,34 +20,43 @@ UFW_RULES=(
 [[ -f /opt/AdGuardHome/AdGuardHome.yaml ]] || UFW_RULES+=("3000/tcp")
 
 if [[ $EUID -ne 0 ]]; then
-    echo "Bitte als root ausführen (sudo $0)." >&2
+    echo "Please run as root (sudo $0)." >&2
     exit 1
 fi
 
-echo "==> Kopiere rootfs/ nach / ..."
+echo "==> Copying rootfs/ to / ..."
 tar -C "$REPO_DIR/rootfs" -cf - . | tar -C / --no-same-owner -xvf -
+
+# Region (Sprache der Texte, Datumsformat, NTP-Server), siehe scripts/set-region.sh
+"$REPO_DIR/scripts/set-region.sh"
+
+echo "==> Installing texts to /usr/local/share/adguard ..."
+install -d /usr/local/share/adguard/lang
+install -m 644 "$REPO_DIR/scripts/i18n.sh" /usr/local/share/adguard/i18n.sh
+rm -f /usr/local/share/adguard/lang/*.sh
+install -m 644 "$REPO_DIR"/lang/*.sh /usr/local/share/adguard/lang/
 
 # Gerätespezifische Anpassungen (hardware/<gerät>/), nur wenn das Gerät erkannt wird
 # shellcheck source=hardware.sh
 source "$REPO_DIR/scripts/hardware.sh"
 HW="$(detect_hardware)"
 if [[ -n $HW && -d $REPO_DIR/hardware/$HW ]]; then
-    echo "==> Gerät erkannt: $HW – spiele hardware/$HW/ ein ..."
+    echo "==> Device detected: $HW – applying hardware/$HW/ ..."
     tar -C "$REPO_DIR/hardware/$HW" -cf - . | tar -C / --no-same-owner -xvf -
 else
-    echo "==> Kein spezielles Gerät erkannt – keine Hardware-Anpassungen nötig."
+    echo "==> No special device detected – no hardware adjustments needed."
 fi
 
 # AdGuard möchte sein Verzeichnis nur für root lesbar haben (sonst Warnung "permcheck")
 [[ -d /opt/AdGuardHome ]] && chmod 700 /opt/AdGuardHome
 
-echo "==> Login-Nachrichten ..."
+echo "==> Login messages ..."
 chmod 755 /etc/update-motd.d/*
 # Debian-Standardtexte ausblenden (Lizenzhinweis + uname-Zeile), eigene MOTD reicht
 : > /etc/motd
 [[ -f /etc/update-motd.d/10-uname ]] && chmod -x /etc/update-motd.d/10-uname
 
-echo "==> Installiere die adguard-Befehle nach /usr/local/sbin ..."
+echo "==> Installing the adguard commands to /usr/local/sbin ..."
 install -m 755 "$REPO_DIR/scripts/adguard-setup.sh"  /usr/local/sbin/adguard-setup
 install -m 755 "$REPO_DIR/scripts/adguard-banner.sh" /usr/local/sbin/adguard-banner
 install -m 755 "$REPO_DIR/scripts/adguard-backup.sh" /usr/local/sbin/adguard-backup
@@ -61,7 +70,7 @@ echo '%sudo ALL=(root) NOPASSWD: /etc/update-motd.d/99-custom-motd' > "$SUDOERS_
 if visudo -cqf "$SUDOERS_TMP"; then
     install -m 440 "$SUDOERS_TMP" /etc/sudoers.d/adguard-status
 else
-    echo "WARNUNG: sudoers-Regel für 'status' ungültig – übersprungen." >&2
+    echo "WARNING: sudoers rule for 'status' is invalid – skipped." >&2
 fi
 rm -f "$SUDOERS_TMP"
 
@@ -71,7 +80,7 @@ for rule in "${UFW_RULES[@]}"; do
 done
 ufw --force enable
 
-echo "==> Dienste neu laden ..."
+echo "==> Reloading services ..."
 systemctl daemon-reexec          # system.conf.d (Watchdog) übernehmen
 udevadm control --reload         # USB-Stick-Meldungen (90-adguard-usb.rules)
 systemctl enable adguard-banner.service
@@ -87,7 +96,7 @@ systemctl restart systemd-timesyncd
 systemctl restart zramswap 2>/dev/null || true
 
 # Geänderte Modul-Sperren (modprobe.d) greifen erst mit neuer initramfs
-echo "==> Aktualisiere initramfs ..."
+echo "==> Updating initramfs ..."
 update-initramfs -u
 
-echo "==> Konfiguration eingespielt."
+echo "==> Configuration applied."

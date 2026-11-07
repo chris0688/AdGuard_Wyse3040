@@ -15,11 +15,15 @@
 #   5. Netzwerk: DHCP oder feste IP
 #
 # Die gewählten Einstellungen landen in /etc/adguard-setup.conf und werden von
-# adguard-backup mitgesichert.
+# adguard-backup mitgesichert. Dort stehen nur Codes (z.B. REBOOT_DAY=Sun), nie
+# übersetzte Texte – ein Backup passt so auch auf ein Gerät mit anderer Sprache.
 #
 # Die AdGuard-Einrichtung (Admin-Benutzer, Upstreams, Filter) erfolgt über
 # den Setup-Assistenten im Webinterface (Port 3000) und nicht hier.
+#
+# Texte: lang/<sprache>.sh, Abschnitte T_SETUP_* und T_UPDATE_* (siehe scripts/i18n.sh)
 set -euo pipefail
+. /usr/local/share/adguard/i18n.sh
 
 STATE_DIR="/var/lib/adguard-setup"
 DONE_FILE="$STATE_DIR/setup.done"
@@ -52,6 +56,9 @@ info()  { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 warn()  { printf '\033[1;33m[!] %s\033[0m\n' "$*"; }
 err()   { printf '\033[1;31m[x] %s\033[0m\n' "$*" >&2; }
 
+# t "TEXT" ARGUMENTE... – übersetzten Text mit Platzhaltern ausgeben (ohne Zeilenende)
+t() { local f="$1"; shift; printf -- "$f" "$@"; }
+
 # ask "Frage" "Default" -> Antwort auf stdout
 ask() {
     local answer
@@ -74,23 +81,12 @@ choose() {
             echo "$answer"
             return
         fi
-        warn "Bitte eine Zahl von 1 bis $# eingeben." >&2
+        warn "$(t "$T_NUMBER_RANGE" 1 $#)" >&2
     done
 }
 
-# yesno "Frage" "j|n" -> Rückgabewert 0 bei ja
-yesno() {
-    local def="$2" answer
-    while true; do
-        read -rp "$1 [$( [[ $def == j ]] && echo 'J/n' || echo 'j/N' )]: " answer
-        answer="${answer:-$def}"
-        case "${answer,,}" in
-            j|ja|y|yes)  return 0 ;;
-            n|nein|no)   return 1 ;;
-            *) warn "Bitte j (ja) oder n (nein) eingeben." ;;
-        esac
-    done
-}
+# yesno "Frage" "y|n" -> Rückgabewert 0 bei ja (siehe adguard_yesno in i18n.sh)
+yesno() { adguard_yesno "$@"; }
 
 
 valid_ipv4() {
@@ -109,7 +105,7 @@ ask_ipv4() {   # ask_ipv4 "Frage" "Default"
     while true; do
         v="$(ask "$1" "$2")"
         valid_ipv4 "$v" && { echo "$v"; return; }
-        warn "Ungültige IPv4-Adresse: $v" >&2
+        warn "$(t "$T_SETUP_INVALID_IPV4" "$v")" >&2
     done
 }
 
@@ -188,7 +184,7 @@ save_settings() {
 
     {
         echo "# adguard-setup – gewählte Einstellungen (wird von adguard-backup mitgesichert)"
-        echo "# Stand: $(date '+%d.%m.%Y %H:%M')"
+        echo "# Stand: $(date '+%Y-%m-%d %H:%M')"
         echo "CONF_VERSION=$CONF_VERSION"
         echo "HOSTNAME=$(hostname)"
         echo "REBOOT_TIME=$(current_reboot_time)"
@@ -217,42 +213,42 @@ step_restore() {
         return 0          # kein Stick mit Backup – normal weiter
     fi
 
-    info "Backup auf USB-Stick gefunden"
-    echo "Gefunden: $(cat "$dir/source.txt")"
+    info "$T_SETUP_RESTORE_TITLE"
+    t "$T_SETUP_RESTORE_FOUND\n" "$(cat "$dir/source.txt")"
     echo
 
     # Auswahl je nachdem, ob Systemeinstellungen im Backup enthalten sind
     local restore_agh=0 use_settings=0
     if [[ -f $dir/adguard-setup.conf ]]; then
-        choice="$(choose "Auswahl" 1 \
-            "AdGuard + Systemeinstellungen übernehmen (empfohlen)" \
-            "nur AdGuard übernehmen" \
-            "nichts übernehmen, neu einrichten")"
+        choice="$(choose "$T_CHOICE" 1 \
+            "$T_SETUP_RESTORE_ALL" \
+            "$T_SETUP_RESTORE_AGH_ONLY" \
+            "$T_SETUP_RESTORE_NOTHING")"
         case "$choice" in
             1) restore_agh=1; use_settings=1 ;;
             2) restore_agh=1 ;;
         esac
     else
-        choice="$(choose "Auswahl" 1 \
-            "AdGuard übernehmen (empfohlen)" \
-            "nichts übernehmen, neu einrichten")"
+        choice="$(choose "$T_CHOICE" 1 \
+            "$T_SETUP_RESTORE_AGH" \
+            "$T_SETUP_RESTORE_NOTHING")"
         [[ $choice == 1 ]] && restore_agh=1
     fi
 
     if (( restore_agh )); then
         if "$ADGUARD_BACKUP" --restore-file "$dir/AdGuardHome.yaml"; then
-            echo "AdGuard-Einstellungen übernommen – der Einrichtungsassistent ist nicht mehr nötig."
+            echo "$T_SETUP_RESTORE_DONE"
         else
-            warn "AdGuard-Einstellungen konnten nicht übernommen werden."
+            warn "$T_SETUP_RESTORE_FAILED"
         fi
     else
-        echo "Es wird nichts übernommen."
+        echo "$T_SETUP_RESTORE_SKIPPED"
     fi
     if (( use_settings )); then
         load_presets "$dir/adguard-setup.conf"
         echo
-        echo "Die folgenden Fragen sind mit den Werten aus dem Backup vorausgefüllt."
-        echo "Einfach mit Enter bestätigen oder bei Bedarf ändern."
+        echo "$T_SETUP_PRESETS_1"
+        echo "$T_SETUP_PRESETS_2"
     fi
     rm -rf "$dir"
 }
@@ -260,21 +256,21 @@ step_restore() {
 # ---------------------------------------------------------------- 1. Hostname
 
 step_hostname() {
-    info "Hostname"
+    info "$T_SETUP_HOSTNAME_TITLE"
     local current new def=n suggestion
     current="$(hostname)"
     suggestion="$current"
-    echo "Aktueller Hostname: $current"
+    t "$T_SETUP_HOSTNAME_CURRENT\n" "$current"
     if [[ -n ${PRESET[HOSTNAME]:-} && ${PRESET[HOSTNAME]} != "$current" ]]; then
-        echo "Aus dem Backup:     ${PRESET[HOSTNAME]}"
-        def=j
+        t "$T_SETUP_FROM_BACKUP\n" "${PRESET[HOSTNAME]}"
+        def=y
         suggestion="${PRESET[HOSTNAME]}"
     fi
-    yesno "Hostname ändern?" "$def" || return 0
+    yesno "$T_SETUP_HOSTNAME_Q_CHANGE" "$def" || return 0
 
-    new="$(ask "Neuer Hostname" "$suggestion")"
+    new="$(ask "$T_SETUP_HOSTNAME_Q_NEW" "$suggestion")"
     if [[ ! $new =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]]; then
-        warn "Ungültiger Hostname – übersprungen."
+        warn "$T_SETUP_HOSTNAME_INVALID"
         return 0
     fi
     hostnamectl set-hostname "$new"
@@ -284,20 +280,20 @@ step_hostname() {
     else
         printf '127.0.1.1\t%s\n' "$new" >> /etc/hosts
     fi
-    echo "Hostname gesetzt: $new"
+    t "$T_SETUP_HOSTNAME_SET\n" "$new"
 }
 
 # ---------------------------------------------------------------- 2. Linux-Passwort
 
 step_linux_password() {
-    info "Linux-Benutzerpasswort"
+    info "$T_SETUP_PASSWORD_TITLE"
     local default_user user
     default_user="${SUDO_USER:-$(getent passwd 1000 | cut -d: -f1)}"
-    yesno "Passwort eines Linux-Benutzers ändern?" n || return 0
+    yesno "$T_SETUP_PASSWORD_Q_CHANGE" n || return 0
 
-    user="$(ask "Benutzer" "${default_user:-root}")"
+    user="$(ask "$T_SETUP_PASSWORD_Q_USER" "${default_user:-root}")"
     if ! id "$user" &>/dev/null; then
-        warn "Benutzer '$user' existiert nicht – übersprungen."
+        warn "$(t "$T_SETUP_PASSWORD_NO_USER" "$user")"
         return 0
     fi
     passwd "$user"
@@ -310,11 +306,10 @@ REBOOT_SERVICE="/etc/systemd/system/adguard-reboot.service"
 APT_REBOOT_CONF="/etc/apt/apt.conf.d/53adguard-reboot-time"
 
 step_reboot() {
-    info "Automatischer Neustart"
-    local time freq day_nr day day_en desc
-    local def_time def_regular=j def_freq=1 def_day=7
-    local -a DAYS_DE=(Montag Dienstag Mittwoch Donnerstag Freitag Samstag Sonntag)
-    local -a DAYS_EN=(Mon Tue Wed Thu Fri Sat Sun)
+    info "$T_SETUP_REBOOT_TITLE"
+    local time freq day_nr day_code calendar desc i
+    local def_time def_regular=y def_freq=1 def_day=7 days=()
+    local -a DAY_CODES=(Mon Tue Wed Thu Fri Sat Sun)
     local plan_mode="${PRESET[REBOOT_MODE]:-}" plan_day="${PRESET[REBOOT_DAY]:-}"
     def_time="${PRESET[REBOOT_TIME]:-$(current_reboot_time)}"
     # Ohne Backup-Werte den eingerichteten Plan vorschlagen, damit Enter beim
@@ -324,56 +319,57 @@ step_reboot() {
     fi
     [[ $plan_mode == none ]] && def_regular=n
     [[ $plan_mode == daily ]] && def_freq=2
-    case "$plan_day" in
-        Mon) def_day=1 ;; Tue) def_day=2 ;; Wed) def_day=3 ;; Thu) def_day=4 ;;
-        Fri) def_day=5 ;; Sat) def_day=6 ;; Sun) def_day=7 ;;
-    esac
+    for i in "${!DAY_CODES[@]}"; do
+        [[ ${DAY_CODES[$i]} == "$plan_day" ]] && def_day=$((i + 1))
+        days+=("$(weekday_name $((i + 1)))")
+    done
 
-    if systemctl is-enabled --quiet adguard-reboot.timer 2>/dev/null; then
-        echo "Aktuell: $(systemctl show -p Description --value adguard-reboot.timer)"
-    else
-        echo "Aktuell: kein regelmäßiger Neustart eingerichtet."
-    fi
+    desc="$(adguard_reboot_text)"
+    t "$T_SETUP_REBOOT_CURRENT\n" "${desc:-$T_SETUP_REBOOT_NONE}"
+    # Die Uhrzeit gilt in der Zeitzone des Geräts (bei UTC evtl. nicht nachts!)
+    t "$T_SETUP_REBOOT_SYSTEM_TIME\n" "$(date '+%H:%M')" \
+        "$(timedatectl show -p Timezone --value 2>/dev/null || echo '?')"
     echo
-    echo "Ein regelmäßiger Neustart hält das System auf Dauer stabil. Während des"
-    echo "Neustarts (ca. 1 Minute) ist DNS im Netz nicht erreichbar, deshalb nachts."
-    echo "Die Uhrzeit gilt auch für Neustarts, die nach automatischen Updates nötig sind."
+    echo "$T_SETUP_REBOOT_INFO_1"
+    echo "$T_SETUP_REBOOT_INFO_2"
+    echo "$T_SETUP_REBOOT_INFO_3"
     echo
 
     while true; do
-        time="$(ask "Uhrzeit für Neustarts (HH:MM)" "$def_time")"
+        time="$(ask "$T_SETUP_REBOOT_Q_TIME" "$def_time")"
         [[ $time =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] && break
-        warn "Bitte im Format HH:MM angeben, z.B. 04:00."
+        warn "$T_SETUP_REBOOT_TIME_FORMAT"
     done
     printf '// erzeugt von adguard-setup\nUnattended-Upgrade::Automatic-Reboot-Time "%s";\n' "$time" > "$APT_REBOOT_CONF"
 
-    if ! yesno "Regelmäßigen Neustart einrichten? (empfohlen)" "$def_regular"; then
+    if ! yesno "$T_SETUP_REBOOT_Q_REGULAR" "$def_regular"; then
         if [[ -f $REBOOT_TIMER ]]; then
             systemctl disable --now adguard-reboot.timer 2>/dev/null || true
             rm -f "$REBOOT_TIMER" "$REBOOT_SERVICE"
             systemctl daemon-reload
         fi
-        echo "Kein regelmäßiger Neustart. Neustarts nach Updates: $time Uhr."
+        t "$T_SETUP_REBOOT_ONLY_UPDATES\n" "$time"
         return 0
     fi
 
-    echo "Wie oft?"
-    freq="$(choose "Auswahl" "$def_freq" "wöchentlich" "täglich")"
+    echo "$T_SETUP_REBOOT_Q_HOW_OFTEN"
+    freq="$(choose "$T_CHOICE" "$def_freq" "$T_SETUP_REBOOT_WEEKLY" "$T_SETUP_REBOOT_DAILY")"
     if [[ $freq == 2 ]]; then
-        day_en="*-*-*"
-        desc="täglich um $time Uhr"
+        calendar="*-*-*"
+        desc="$(t "$T_REBOOT_DAILY" "$time")"
     else
-        echo "An welchem Wochentag?"
-        day_nr="$(choose "Auswahl" "$def_day" "${DAYS_DE[@]}")"
-        day="${DAYS_DE[$((day_nr - 1))]}"
-        day_en="${DAYS_EN[$((day_nr - 1))]} *-*-*"
-        desc="wöchentlich am $day um $time Uhr"
+        echo "$T_SETUP_REBOOT_Q_DAY"
+        day_nr="$(choose "$T_CHOICE" "$def_day" "${days[@]}")"
+        day_code="${DAY_CODES[$((day_nr - 1))]}"
+        calendar="$day_code *-*-*"
+        desc="$(t "$T_REBOOT_WEEKLY" "${days[$((day_nr - 1))]}" "$time")"
     fi
 
+    # Die Beschreibung ist nur für systemctl; Begrüßung und Setup lesen OnCalendar
     cat > "$REBOOT_SERVICE" <<EOF
 # erzeugt von adguard-setup
 [Unit]
-Description=Regelmäßiger Neustart
+Description=$T_SETUP_REBOOT_SERVICE_DESC
 
 [Service]
 Type=oneshot
@@ -382,10 +378,10 @@ EOF
     cat > "$REBOOT_TIMER" <<EOF
 # erzeugt von adguard-setup – ändern mit: sudo adguard-setup
 [Unit]
-Description=Neustart $desc
+Description=$(t "$T_SETUP_REBOOT_TIMER_DESC" "$desc")
 
 [Timer]
-OnCalendar=$day_en $time:00
+OnCalendar=$calendar $time:00
 # Verpasste Termine (Gerät war aus) NICHT nachholen
 Persistent=false
 
@@ -394,27 +390,27 @@ WantedBy=timers.target
 EOF
     systemctl daemon-reload
     systemctl enable --now adguard-reboot.timer
-    echo "Eingerichtet: Neustart $desc."
+    t "$T_SETUP_REBOOT_DONE\n" "$desc"
 }
 
 # ---------------------------------------------------------------- 4. Cockpit
 
 step_cockpit() {
-    info "Web-Verwaltung (Cockpit)"
+    info "$T_SETUP_COCKPIT_TITLE"
     local ip
     ip="$(hostname -I | awk '{print $1}')"
     if dpkg -s cockpit-ws &>/dev/null; then
-        echo "Cockpit ist installiert: https://$ip:9090"
+        t "$T_SETUP_COCKPIT_INSTALLED\n" "https://$ip:9090"
         return 0
     fi
-    echo "Cockpit ist eine Weboberfläche für die Linux-Verwaltung: Terminal im"
-    echo "Browser, Updates, Logs, Dienste, Neustart. Adresse danach: https://$ip:9090"
+    echo "$T_SETUP_COCKPIT_INFO_1"
+    t "$T_SETUP_COCKPIT_INFO_2\n" "https://$ip:9090"
     local def=n
     if [[ ${PRESET[COCKPIT]:-} == yes ]]; then
-        echo "Laut Backup war Cockpit installiert."
-        def=j
+        echo "$T_SETUP_COCKPIT_IN_BACKUP"
+        def=y
     fi
-    yesno "Cockpit installieren?" "$def" || return 0
+    yesno "$T_SETUP_COCKPIT_Q_INSTALL" "$def" || return 0
 
     # --no-install-recommends: sonst würde u.a. NetworkManager mitinstalliert und
     # die Netzwerkkonfiguration übernehmen.
@@ -425,8 +421,8 @@ step_cockpit() {
     systemctl enable --now cockpit.socket
     # Web-Konsole in den Login-Banner aufnehmen
     /usr/local/sbin/adguard-banner || true
-    echo "Cockpit installiert: https://$ip:9090  (Login mit dem Linux-Benutzer)"
-    warn "Der Browser warnt beim ersten Aufruf vor dem selbst signierten Zertifikat – das ist normal."
+    t "$T_SETUP_COCKPIT_DONE\n" "https://$ip:9090"
+    warn "$T_SETUP_CERT_WARNING"
 }
 
 # ---------------------------------------------------------------- 5. Netzwerk
@@ -454,7 +450,7 @@ detect_backend() {
 
 write_resolv_conf() {   # write_resolv_conf dns1 [dns2]
     if [[ -L /etc/resolv.conf ]]; then
-        warn "/etc/resolv.conf ist ein Symlink (resolvconf/systemd-resolved) – nicht angefasst."
+        warn "$T_SETUP_NET_RESOLV_SYMLINK"
         return
     fi
     {
@@ -464,66 +460,69 @@ write_resolv_conf() {   # write_resolv_conf dns1 [dns2]
 }
 
 step_network() {
-    info "Netzwerk"
+    info "$T_SETUP_NET_TITLE"
     local iface backend cur mode addr gw dns1 dns2
     iface="$(detect_iface)"
     backend="$(detect_backend)"
     cur="$(ip -4 -o addr show dev "$iface" 2>/dev/null | awk '{print $4; exit}')"
     # DHCP-Adressen haben eine Ablaufzeit und sind als "dynamic" markiert
-    local cur_mode="feste IP"
-    ip -4 -o addr show dev "$iface" 2>/dev/null | grep -q dynamic && cur_mode="DHCP"
+    local cur_dhcp=0 cur_mode="$T_SETUP_NET_STATIC_IP"
+    if ip -4 -o addr show dev "$iface" 2>/dev/null | grep -q dynamic; then
+        cur_dhcp=1
+        cur_mode="DHCP"
+    fi
 
-    echo "Schnittstelle: $iface   Adresse: ${cur:-keine}   Modus: $cur_mode   Verwaltung: $backend"
+    t "$T_SETUP_NET_CURRENT\n" "$iface" "${cur:-$T_SETUP_NET_NONE}" "$cur_mode" "$backend"
     echo
-    echo "Ein DNS-Server sollte immer unter derselben Adresse erreichbar sein. Dafür"
-    echo "entweder hier eine feste IP vergeben oder im Router für dieses Gerät eine"
-    echo "feste DHCP-Adresse reservieren (dann DHCP behalten)."
+    echo "$T_SETUP_NET_INFO_1"
+    echo "$T_SETUP_NET_INFO_2"
+    echo "$T_SETUP_NET_INFO_3"
     echo
 
     local def_mode=3
     case "${PRESET[NET_MODE]:-}" in
         static)
             def_mode=2
-            echo "Aus dem Backup: feste IP ${PRESET[NET_ADDR]:-?}, Gateway ${PRESET[NET_GW]:-?}"
-            warn "Diese Adresse darf im Netz nicht schon vergeben sein (z.B. durch das alte Gerät)."
+            t "$T_SETUP_NET_BACKUP_STATIC\n" "${PRESET[NET_ADDR]:-?}" "${PRESET[NET_GW]:-?}"
+            warn "$T_SETUP_NET_ADDR_IN_USE"
             echo ;;
         dhcp)
             def_mode=1
-            echo "Aus dem Backup: DHCP"
+            t "$T_SETUP_FROM_BACKUP\n" "DHCP"
             echo ;;
     esac
 
-    mode="$(choose "Auswahl" "$def_mode" "DHCP (Adresse vom Router)" "feste IP vergeben" "unverändert lassen ($cur_mode)")"
+    mode="$(choose "$T_CHOICE" "$def_mode" "$T_SETUP_NET_OPT_DHCP" "$T_SETUP_NET_OPT_STATIC" \
+            "$(t "$T_SETUP_NET_OPT_KEEP" "$cur_mode")")"
     case "$mode" in
         2) mode=static ;;
         1) mode=dhcp
-            if [[ $cur_mode == DHCP ]]; then echo "DHCP ist bereits aktiv."; return 0; fi ;;
-        *)  echo "Netzwerk bleibt unverändert."; return 0 ;;
+            if (( cur_dhcp )); then echo "$T_SETUP_NET_DHCP_ACTIVE"; return 0; fi ;;
+        *)  echo "$T_SETUP_NET_UNCHANGED"; return 0 ;;
     esac
-    iface="$(ask "Schnittstelle" "$iface")"
+    iface="$(ask "$T_SETUP_NET_Q_IFACE" "$iface")"
 
     if [[ $mode == static ]]; then
-        mode=static
         while true; do
-            addr="$(ask "IP-Adresse mit Präfix (z.B. 192.168.1.53/24)" "${PRESET[NET_ADDR]:-${cur:-192.168.1.53/24}}")"
+            addr="$(ask "$T_SETUP_NET_Q_ADDR" "${PRESET[NET_ADDR]:-${cur:-192.168.1.53/24}}")"
             valid_cidr "$addr" && break
-            warn "Bitte im Format a.b.c.d/nn angeben."
+            warn "$T_SETUP_NET_ADDR_FORMAT"
         done
-        gw="$(ask_ipv4 "Gateway (Router)" "${PRESET[NET_GW]:-$(ip -4 route show default | awk '{print $3; exit}')}")"
+        gw="$(ask_ipv4 "$T_SETUP_NET_Q_GW" "${PRESET[NET_GW]:-$(ip -4 route show default | awk '{print $3; exit}')}")"
         # Das Gerät selbst nicht über den eigenen AdGuard auflösen lassen – sonst
         # gehen Updates nicht, wenn AdGuard mal hängt.
-        dns1="$(ask_ipv4 "DNS-Server für das Gerät selbst" "${PRESET[NET_DNS1]:-$gw}")"
+        dns1="$(ask_ipv4 "$T_SETUP_NET_Q_DNS1" "${PRESET[NET_DNS1]:-$gw}")"
         # "-" statt ":-": ein im Backup bewusst leerer zweiter DNS bleibt leer
-        dns2="$(ask "Zweiter DNS-Server (leer = keiner)" "${PRESET[NET_DNS2]-9.9.9.9}")"
+        dns2="$(ask "$T_SETUP_NET_Q_DNS2" "${PRESET[NET_DNS2]-9.9.9.9}")"
         if [[ -n $dns2 ]] && ! valid_ipv4 "$dns2"; then
-            warn "Ungültiger zweiter DNS – wird ignoriert."
+            warn "$T_SETUP_NET_DNS2_INVALID"
             dns2=""
         fi
     fi
 
     echo
-    echo "Zusammenfassung: $iface -> $mode ${addr:-} ${gw:+gw $gw} ${dns1:+dns $dns1 $dns2}"
-    yesno "So übernehmen?" j || { warn "Netzwerk unverändert."; return 0; }
+    t "$T_SETUP_NET_SUMMARY\n" "$iface -> $mode ${addr:-} ${gw:+gw $gw} ${dns1:+dns $dns1 $dns2}"
+    yesno "$T_SETUP_NET_Q_APPLY" y || { warn "$T_SETUP_NET_UNCHANGED"; return 0; }
 
     case "$backend" in
         ifupdown)
@@ -575,7 +574,7 @@ step_network() {
             fi
             ;;
         *)
-            err "Unbekannte Netzwerkverwaltung – bitte manuell konfigurieren."
+            err "$T_SETUP_NET_UNKNOWN_BACKEND"
             return 0
             ;;
     esac
@@ -583,8 +582,8 @@ step_network() {
     # Für /etc/adguard-setup.conf merken (gilt erst nach dem Neustart)
     NET_MODE="$mode" NET_ADDR="${addr:-}" NET_GW="${gw:-}" NET_DNS1="${dns1:-}" NET_DNS2="${dns2:-}"
 
-    echo "Netzwerk konfiguriert. Wird nach dem Neustart aktiv."
-    [[ $mode == static ]] && echo "AdGuard ist dann erreichbar unter: http://${addr%/*}/"
+    echo "$T_SETUP_NET_DONE"
+    [[ $mode == static ]] && t "$T_SETUP_NET_NEW_URL\n" "http://${addr%/*}/"
     NEED_REBOOT=1
 }
 
@@ -604,7 +603,7 @@ version_gt() {
 # (bei unbekannter Version nur der neueste Abschnitt)
 show_changes() {
     local file="$1" from="$2" line ver show=0 shown=0
-    [[ -f $file ]] || { echo "  (keine Änderungsliste vorhanden)"; return; }
+    [[ -f $file ]] || { echo "  ($T_UPDATE_NO_CHANGELOG)"; return; }
     while IFS= read -r line; do
         if [[ $line =~ ^##[[:space:]]+(v[0-9][0-9A-Za-z.-]*) ]]; then
             ver="${BASH_REMATCH[1]}"
@@ -618,30 +617,30 @@ show_changes() {
         fi
         (( show )) && echo "  $line"
     done < "$file"
-    (( shown )) || echo "  (keine Einträge gefunden)"
+    (( shown )) || echo "  ($T_UPDATE_NO_ENTRIES)"
 }
 
 do_update() {
-    local repo current latest tmp
+    local repo current latest tmp changelog
     repo="$(cat "$SETUP_DIR/REPO" 2>/dev/null || true)"
     [[ $repo =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || repo="$DEFAULT_REPO"
     current="$(installed_version)"
 
-    info "Projekt-Update (AdGuard-Wyse3040)"
-    echo "Suche nach der neuesten Version auf github.com/$repo ..."
+    info "$T_UPDATE_TITLE"
+    t "$T_UPDATE_SEARCHING\n" "github.com/$repo"
     latest="$(curl -fsSL --max-time 20 "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null \
               | sed -n 's/^[[:space:]]*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
     if [[ ! $latest =~ ^v[0-9][0-9A-Za-z.-]*$ ]]; then
-        err "Konnte die neueste Version nicht ermitteln (Internet? GitHub erreichbar?)."
+        err "$T_UPDATE_NO_LATEST"
         return 1
     fi
 
     echo
-    echo "  Installiert:  ${current:-unbekannt}"
-    echo "  Verfügbar:    $latest"
+    t "  $T_UPDATE_INSTALLED\n" "${current:-$T_UPDATE_UNKNOWN}"
+    t "  $T_UPDATE_AVAILABLE\n" "$latest"
     if [[ $current == "$latest" ]] || { [[ $current =~ ^v[0-9] ]] && ! version_gt "$latest" "$current"; }; then
         echo
-        info "Du hast bereits die neueste Version ($current)."
+        info "$(t "$T_UPDATE_UP_TO_DATE" "$current")"
         return 0
     fi
 
@@ -652,52 +651,48 @@ do_update() {
     if ! curl -fsSL --max-time 120 "https://github.com/$repo/archive/refs/tags/$latest.tar.gz" \
             | tar -xz -C "$tmp" --strip-components=1 \
        || [[ ! -f $tmp/scripts/install.sh ]]; then
-        err "Download von $latest fehlgeschlagen – nichts geändert."
+        err "$(t "$T_UPDATE_DOWNLOAD_FAILED" "$latest")"
         return 1
     fi
 
+    # Änderungsliste in der Sprache des Geräts, sonst die englische
+    changelog="$tmp/CHANGELOG.$TEXTS.md"
+    [[ -f $changelog ]] || changelog="$tmp/CHANGELOG.md"
+
     echo
-    echo "  Änderungen:"
+    echo "  $T_UPDATE_CHANGES"
     echo "  ----------------------------------------------------------------"
-    show_changes "$tmp/CHANGELOG.md" "$current"
+    show_changes "$changelog" "$current"
     echo "  ----------------------------------------------------------------"
-    echo "  Alle Details: https://github.com/$repo/releases"
+    t "  $T_UPDATE_DETAILS\n" "https://github.com/$repo/releases"
     echo
-    warn "BITTE VOR DEM UPDATE LESEN"
-    echo "    - Das Update ändert Skripte und Systemeinstellungen dieses Geräts."
-    echo "      Eigene Änderungen an Dateien dieses Projekts werden überschrieben."
-    echo "    - AdGuard Home selbst wird NICHT aktualisiert (das geht im"
-    echo "      AdGuard-Webinterface)."
-    echo "    - Lies die Änderungen oben und entscheide, ob du sie brauchst."
-    echo "      Läuft alles, ist ein Update nicht nötig."
-    echo "    - Ein ZURÜCK zur bisherigen Version ist NICHT vorgesehen, nur über"
-    echo "      eine Neuinstallation (danach Backup vom USB-Stick einspielen)."
-    echo "    - Vorher wird automatisch ein Backup der Einstellungen angelegt."
+    warn "$T_UPDATE_READ_FIRST"
+    echo "$T_UPDATE_WARNING"
     echo
     local answer
-    read -rp "Update jetzt installieren? Zum Bestätigen \"ja\" eingeben: " answer
-    if [[ ${answer,,} != ja ]]; then
-        echo "Abgebrochen – nichts geändert."
+    read -rp "$(t "$T_UPDATE_Q_CONFIRM" "$T_UPDATE_CONFIRM_WORD") " answer
+    if [[ ${answer,,} != "${T_UPDATE_CONFIRM_WORD,,}" && ${answer,,} != yes ]]; then
+        echo "$T_UPDATE_CANCELLED"
         return 0
     fi
 
-    info "Sichere Einstellungen ..."
+    info "$T_UPDATE_BACKING_UP"
     [[ -x $ADGUARD_BACKUP ]] && "$ADGUARD_BACKUP" --auto || true
 
-    info "Spiele $latest ein ..."
+    info "$(t "$T_UPDATE_INSTALLING" "$latest")"
     rm -rf "$SETUP_DIR.new"
     cp -a "$tmp" "$SETUP_DIR.new"
-    echo "$latest (Update vom $(date '+%d.%m.%Y'))" > "$SETUP_DIR.new/VERSION"
+    echo "$latest ($(t "$T_UPDATE_VERSION_NOTE" "$(date "+$DATE_FORMAT")"))" > "$SETUP_DIR.new/VERSION"
     echo "$repo" > "$SETUP_DIR.new/REPO"
     chmod 755 "$SETUP_DIR.new" "$SETUP_DIR.new"/scripts/*.sh
     rm -rf "$SETUP_DIR"
     mv "$SETUP_DIR.new" "$SETUP_DIR"
     if ! "$SETUP_DIR/scripts/install.sh" > /var/log/adguard-setup-update.log 2>&1; then
-        err "Beim Einspielen ist ein Fehler aufgetreten – Details: /var/log/adguard-setup-update.log"
+        err "$(t "$T_UPDATE_INSTALL_FAILED" /var/log/adguard-setup-update.log)"
         return 1
     fi
 
-    info "Fertig. Installiert: $latest"
+    info "$(t "$T_UPDATE_DONE" "$latest")"
     echo
     /etc/update-motd.d/99-custom-motd 2>/dev/null || true
 }
@@ -706,7 +701,7 @@ do_update() {
 
 main() {
     if [[ $EUID -ne 0 ]]; then
-        err "Bitte als root ausführen: sudo $0"
+        err "$(t "$T_NEED_ROOT" "$0")"
         exit 1
     fi
 
@@ -721,20 +716,18 @@ main() {
             check_settings
             exit $? ;;
         --version)
-            echo "AdGuard-Wyse3040 $(cat "$SETUP_DIR/VERSION" 2>/dev/null || echo unbekannt)"
+            echo "AdGuard-Wyse3040 $(cat "$SETUP_DIR/VERSION" 2>/dev/null || echo "$T_UPDATE_UNKNOWN")"
             exit 0 ;;
         "") ;;
-        *)  echo "Aufruf: sudo adguard-setup             Grundeinrichtung"
-            echo "        sudo adguard-setup --update    dieses Projekt aktualisieren (nicht AdGuard)"
-            echo "        sudo adguard-setup --version   installierte Projektversion anzeigen"
+        *)  echo "$T_SETUP_USAGE"
             exit 2 ;;
     esac
 
     echo "======================================================"
-    echo "  AdGuard Home – Grundeinrichtung"
+    echo "  $T_SETUP_TITLE"
     echo "======================================================"
     if [[ -f $DONE_FILE ]]; then
-        echo "Zuletzt ausgeführt: $(cat "$DONE_FILE")"
+        t "$T_SETUP_LAST_RUN\n" "$(adguard_date -d "$(cat "$DONE_FILE")" 2>/dev/null || cat "$DONE_FILE")"
     fi
 
     step_restore
@@ -751,15 +744,15 @@ main() {
     mkdir -p "$STATE_DIR"
     date '+%Y-%m-%d %H:%M' > "$DONE_FILE"
 
-    info "Fertig."
+    info "$T_SETUP_DONE"
     if (( NEED_REBOOT )); then
-        warn "Ein Neustart ist nötig, damit alle Änderungen greifen."
-        warn "Bei SSH-Verbindung: nach dem Neustart ggf. mit der NEUEN IP verbinden."
-        if yesno "Jetzt neu starten?" j; then
+        warn "$T_SETUP_REBOOT_NEEDED"
+        warn "$T_SETUP_REBOOT_NEW_IP"
+        if yesno "$T_SETUP_Q_REBOOT_NOW" y; then
             systemctl reboot
             return 0
         fi
-        warn "Bis zum Neustart zeigt die Übersicht noch die bisherigen Netzwerkwerte."
+        warn "$T_SETUP_REBOOT_LATER"
     fi
 
     # Ergebnis gleich als Systemübersicht anzeigen (wie der Befehl "status")

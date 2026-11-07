@@ -31,8 +31,22 @@ PACKAGES=(
 
 export DEBIAN_FRONTEND=noninteractive
 
+if [[ $EUID -ne 0 ]]; then
+    echo "Please run as root (sudo $0)." >&2
+    exit 1
+fi
+
+# ------------------------------------------------------------ Region und Texte
+# Region (Sprache, NTP) aus dem Bootmenü bzw. der System-Locale festlegen, damit
+# schon die Statusmeldungen in der richtigen Sprache erscheinen. Die Texte kommen
+# hier noch aus dem Repo (install.sh installiert sie später nach /usr/local/share).
+"$REPO_DIR/scripts/set-region.sh"
+ADGUARD_SHARE="$REPO_DIR"
+. "$REPO_DIR/scripts/i18n.sh"
+
 # ------------------------------------------------------------ Statusanzeige
 # Zeigt den Fortschritt auch am Bildschirm vor dem Login an (/etc/issue.d).
+# Texte T_BOOT_* sind reines ASCII (Schrift der Konsole vor dem Login).
 
 status() {   # status "farbe" "text"
     mkdir -p "$(dirname "$STATUS_ISSUE")"
@@ -42,14 +56,9 @@ status() {   # status "farbe" "text"
 }
 
 on_error() {
-    status lightred "Einrichtung FEHLGESCHLAGEN - Details: journalctl -u adguard-firstboot"
+    status lightred "$T_BOOT_FAILED"
 }
 trap on_error ERR
-
-if [[ $EUID -ne 0 ]]; then
-    echo "Bitte als root ausführen (sudo $0)." >&2
-    exit 1
-fi
 
 # ------------------------------------------------------------ Internet abwarten
 # Direkt nach dem Start ist oft noch keine IP da. Statt "fehlgeschlagen" anzuzeigen,
@@ -59,13 +68,13 @@ fi
 internet_ok() { curl -fsS -o /dev/null --max-time 5 http://deb.debian.org/debian/; }
 
 if ! internet_ok; then
-    status yellow "Warte auf Internet - Netzwerkkabel pruefen (neuer Versuch alle 10 s)"
+    status yellow "$T_BOOT_WAIT_INTERNET"
     until internet_ok; do sleep 10; done
 fi
 
 # ------------------------------------------------------------ Pakete
 
-status yellow "Einrichtung laeuft (Pakete werden installiert) - bitte warten ..."
+status yellow "$T_BOOT_PACKAGES"
 apt-get update
 apt-get install -y "${PACKAGES[@]}"
 # Prozessor-Microcode (Sicherheits-/Stabilitätsupdates der CPU) passend zum Hersteller.
@@ -76,7 +85,7 @@ case "$(awk -F': ' '/^vendor_id/ {print $2; exit}' /proc/cpuinfo)" in
     *)            MICROCODE="" ;;
 esac
 if [[ -n $MICROCODE ]]; then
-    apt-get install -y "$MICROCODE" 2>/dev/null || echo "$MICROCODE nicht verfügbar – übersprungen."
+    apt-get install -y "$MICROCODE" 2>/dev/null || echo "$MICROCODE not available – skipped."
 fi
 
 # ------------------------------------------------------------ AdGuard Home
@@ -87,14 +96,14 @@ agh_arch() {
         i386)  echo 386 ;;
         arm64) echo arm64 ;;
         armhf) echo armv7 ;;
-        *)     echo "Nicht unterstützte Architektur: $(dpkg --print-architecture)" >&2; return 1 ;;
+        *)     echo "Unsupported architecture: $(dpkg --print-architecture)" >&2; return 1 ;;
     esac
 }
 
 if [[ -x $AGH_DIR/AdGuardHome ]]; then
-    echo "AdGuard Home ist bereits installiert – übersprungen."
+    echo "AdGuard Home is already installed – skipped."
 else
-    status yellow "Einrichtung laeuft (AdGuard Home wird installiert) - bitte warten ..."
+    status yellow "$T_BOOT_ADGUARD"
     tmp="$(mktemp -d)"
     curl -fsSL --retry 5 --retry-delay 10 \
         -o "$tmp/agh.tar.gz" "$AGH_URL_BASE/AdGuardHome_linux_$(agh_arch).tar.gz"
@@ -105,7 +114,7 @@ fi
 
 # ------------------------------------------------------------ Konfiguration
 
-status yellow "Einrichtung laeuft (Konfiguration) - bitte warten ..."
+status yellow "$T_BOOT_CONFIG"
 "$REPO_DIR/scripts/install.sh"
 
 mkdir -p "$STATE_DIR"
@@ -113,4 +122,4 @@ date '+%Y-%m-%d %H:%M' > "$STATE_DIR/bootstrap.done"
 
 rm -f "$STATUS_ISSUE"
 agetty --reload 2>/dev/null || true
-echo "==> Fertig. AdGuard Home einrichten unter http://$(hostname -I | awk '{print $1}'):3000"
+echo "==> $(printf "$T_BOOT_DONE" "http://$(hostname -I | awk '{print $1}'):3000")"

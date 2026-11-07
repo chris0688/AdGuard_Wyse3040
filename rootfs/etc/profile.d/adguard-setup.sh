@@ -1,35 +1,39 @@
 # /etc/profile.d/adguard-setup.sh
 # Fragt beim Login nach der Grundeinrichtung (Hostname, Neustart, DHCP/feste IP),
 # bis "sudo adguard-setup" einmal vollständig durchgelaufen ist.
+# Texte: lang/<sprache>.sh, Abschnitt T_PROFILE_* (siehe scripts/i18n.sh)
 
 # Nur interaktive Shells (nicht bei scp, ssh <befehl> usw.)
 case $- in *i*) ;; *) return 0 ;; esac
 
 [ -f /var/lib/adguard-setup/setup.done ] && return 0
 
-if [ ! -f /var/lib/adguard-setup/bootstrap.done ]; then
-    printf '\n\033[1;33mDie automatische Ersteinrichtung läuft noch.\033[0m\n'
-    printf 'Fortschritt: journalctl -fu adguard-firstboot\n\n'
-    return 0
-fi
+# In einer Subshell, damit Texte und Hilfsfunktionen nicht in der
+# Login-Shell landen. Während der Ersteinrichtung sind die Texte noch nicht
+# installiert, dann kommen sie direkt aus dem Repo.
+(
+    if [ -r /usr/local/share/adguard/i18n.sh ]; then
+        . /usr/local/share/adguard/i18n.sh
+    elif [ -r /opt/adguard-setup/scripts/i18n.sh ]; then
+        ADGUARD_SHARE=/opt/adguard-setup
+        . /opt/adguard-setup/scripts/i18n.sh
+    else
+        exit 0
+    fi
 
-# Nur Benutzer mit Admin-Rechten fragen
-id -nG 2>/dev/null | grep -qw sudo || [ "$(id -u)" -eq 0 ] || return 0
+    if [ ! -f /var/lib/adguard-setup/bootstrap.done ]; then
+        printf '\n\033[1;33m%s\033[0m\n' "$T_PROFILE_BOOTSTRAP_RUNNING"
+        printf '%s journalctl -fu adguard-firstboot\n\n' "$T_PROFILE_PROGRESS"
+        exit 0
+    fi
 
-printf '\n\033[1;33mDie Grundeinrichtung (Hostname, Neustart-Zeitplan, DHCP oder feste IP) ist noch nicht erledigt.\033[0m\n'
-# Nur eindeutige Antworten gelten, sonst wird erneut gefragt
-while true; do
-    printf 'Jetzt starten? [J/n] '
-    read -r _adguard_answer
-    case "$_adguard_answer" in
-        ""|[jJ]|[jJ][aA]|[yY]|[yY][eE][sS])
-            sudo /usr/local/sbin/adguard-setup
-            break ;;
-        [nN]|[nN][eE][iI][nN]|[nN][oO])
-            printf 'Später starten mit: sudo adguard-setup\n\n'
-            break ;;
-        *)
-            printf 'Bitte j (ja) oder n (nein) eingeben.\n' ;;
-    esac
-done
-unset _adguard_answer
+    # Nur Benutzer mit Admin-Rechten fragen
+    id -nG 2>/dev/null | grep -qw sudo || [ "$(id -u)" -eq 0 ] || exit 0
+
+    printf '\n\033[1;33m%s\033[0m\n' "$T_PROFILE_SETUP_PENDING"
+    if adguard_yesno "$T_PROFILE_Q_START" y; then
+        sudo /usr/local/sbin/adguard-setup
+    else
+        printf '%s sudo adguard-setup\n\n' "$T_PROFILE_LATER"
+    fi
+)
