@@ -46,29 +46,48 @@ jobs:
       - name: Release-Text erstellen
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          {
-            echo "## Änderungen"
-            echo
-            # Abschnitt "## <tag>" aus CHANGELOG.md (bis zum nächsten "## ")
+          # Abschnitt "## <tag>" aus einer Änderungsliste (bis zum nächsten "## ")
+          section() {
             awk -v tag="$GITHUB_REF_NAME" '
               $1 == "##" { show = ($2 == tag); next }
-              show' CHANGELOG.md
+              show' "$1"
+          }
+          {
+            echo "## Changes"
+            echo
+            section CHANGELOG.md
+            echo
+            echo "Update existing devices: \`sudo adguard-setup --update\`"
+            echo
+            echo "## New installation"
+            echo
+            echo "Installation ISO for AdGuard Home on the Dell Wyse 3040 (and other UEFI PCs)."
+            echo "Language and country are chosen in the boot menu."
+            echo "Guide: see [README](https://github.com/$GITHUB_REPOSITORY#quick-start)."
+            echo
+            echo "**Warning:** the entry \"AdGuard Home: install\" erases the internal disk without confirmation."
+            echo
+            echo "<details><summary>Deutsch</summary>"
+            echo
+            echo "## Änderungen"
+            echo
+            section CHANGELOG.de.md
             echo
             echo "Bestehende Geräte aktualisieren: \`sudo adguard-setup --update\`"
             echo
-            echo "## Neuinstallation"
+            echo "Installations-ISO für AdGuard Home auf dem Dell Wyse 3040. Sprache und Land"
+            echo "werden im Bootmenü gewählt. Anleitung: [README.de.md](https://github.com/$GITHUB_REPOSITORY/blob/main/README.de.md#schnellstart)."
             echo
-            echo "Installations-ISO für AdGuard Home auf dem Dell Wyse 3040."
-            echo "Anleitung: siehe [README](https://github.com/$GITHUB_REPOSITORY#schnellstart)."
+            echo "**Achtung:** Der Eintrag „AdGuard Home: installieren“ löscht die interne Festplatte ohne Rückfrage."
             echo
-            echo "**Achtung:** Der Eintrag „automatisch installieren“ löscht die interne eMMC ohne Rückfrage."
+            echo "</details>"
             echo
             echo "---"
-            echo "Basiert auf der unveränderten offiziellen Debian-Netinstall-ISO \`$DEBIAN_ISO\`"
-            echo "(Debian ist freie Software). Quellcode der enthaltenen Debian-Pakete:"
+            echo "Based on the unmodified official Debian netinstall ISO \`$DEBIAN_ISO\`"
+            echo "(Debian is free software). Source code of the included Debian packages:"
             echo "https://cdimage.debian.org/cdimage/release/ · https://snapshot.debian.org/"
-            echo "AdGuard Home ist **nicht** enthalten. Es wird bei der Installation von den offiziellen"
-            echo "AdGuard-Servern geladen."
+            echo "AdGuard Home is **not** included. It is downloaded from the official AdGuard"
+            echo "servers during installation."
           } > build/release-body.md
 
       - name: Release veröffentlichen
