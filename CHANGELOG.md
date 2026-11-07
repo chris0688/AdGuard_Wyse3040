@@ -9,6 +9,8 @@ Installer, Partitionierung), sind entsprechend gekennzeichnet.
 - Fehler behoben: `adguard-setup --update` meldete am Ende „tmp ist nicht
   gesetzt“ und ließ den Download-Ordner in `/tmp` liegen. Die Meldung kommt
   beim Update auf diese Version noch ein letztes Mal.
+- Begrüßung: Der Hinweis „Das Setup hat neue Einstellungen“ steht jetzt
+  auffälliger ganz oben unter „SYSTEMSTATUS“.
 
 ## v0.9.1
 
