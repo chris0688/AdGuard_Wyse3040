@@ -43,6 +43,34 @@ jobs:
           path: build/${{ env.ISO }}*
           retention-days: 7
 
+      - name: Release-Text erstellen
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          {
+            echo "## Änderungen"
+            echo
+            # Abschnitt "## <tag>" aus CHANGELOG.md (bis zum nächsten "## ")
+            awk -v tag="$GITHUB_REF_NAME" '
+              $1 == "##" { show = ($2 == tag); next }
+              show' CHANGELOG.md
+            echo
+            echo "Bestehende Geräte aktualisieren: \`sudo adguard-setup --update\`"
+            echo
+            echo "## Neuinstallation"
+            echo
+            echo "Installations-ISO für AdGuard Home auf dem Dell Wyse 3040."
+            echo "Anleitung: siehe [README](https://github.com/$GITHUB_REPOSITORY#schnellstart)."
+            echo
+            echo "**Achtung:** Der Eintrag „automatisch installieren“ löscht die interne eMMC ohne Rückfrage."
+            echo
+            echo "---"
+            echo "Basiert auf der unveränderten offiziellen Debian-Netinstall-ISO \`$DEBIAN_ISO\`"
+            echo "(Debian ist freie Software). Quellcode der enthaltenen Debian-Pakete:"
+            echo "https://cdimage.debian.org/cdimage/release/ · https://snapshot.debian.org/"
+            echo "AdGuard Home ist **nicht** enthalten. Es wird bei der Installation von den offiziellen"
+            echo "AdGuard-Servern geladen."
+          } > build/release-body.md
+
       - name: Release veröffentlichen
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -50,15 +78,4 @@ jobs:
           files: |
             build/${{ env.ISO }}
             build/${{ env.ISO }}.sha256
-          body: |
-            Installations-ISO für AdGuard Home auf dem Dell Wyse 3040.
-            Anleitung: siehe [README](https://github.com/${{ github.repository }}#schnellstart).
-
-            **Achtung:** Der Eintrag „automatisch installieren“ löscht die interne eMMC ohne Rückfrage.
-
-            ---
-            Basiert auf der unveränderten offiziellen Debian-Netinstall-ISO `${{ env.DEBIAN_ISO }}`
-            (Debian ist freie Software). Quellcode der enthaltenen Debian-Pakete:
-            https://cdimage.debian.org/cdimage/release/ · https://snapshot.debian.org/
-            AdGuard Home ist **nicht** enthalten. Es wird bei der Installation von den offiziellen
-            AdGuard-Servern geladen.
+          body_path: build/release-body.md

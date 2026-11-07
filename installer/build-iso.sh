@@ -54,6 +54,11 @@ find "$STAGE" -type f -exec sed -i 's/\r$//' {} +
 chmod 755 "$STAGE"/adguard-setup/scripts/*.sh "$STAGE"/adguard-setup/rootfs/etc/update-motd.d/*
 # Version für das installierte Gerät (Anzeige in der Begrüßung)
 echo "$VERSION (Debian $DEBIAN_VERSION, gebaut $(date '+%d.%m.%Y'))" > "$STAGE/adguard-setup/VERSION"
+# Woher "sudo adguard-setup --update" Updates holt (bei GitHub-Builds automatisch das
+# eigene Repo, also auch bei Forks richtig; sonst Standard aus adguard-setup.sh)
+if [[ -n ${GITHUB_REPOSITORY:-} ]]; then
+    echo "$GITHUB_REPOSITORY" > "$STAGE/adguard-setup/REPO"
+fi
 
 OUT_ISO="$BUILD_DIR/adguard-wyse3040-$VERSION-debian-$DEBIAN_VERSION.iso"
 rm -f "$OUT_ISO"

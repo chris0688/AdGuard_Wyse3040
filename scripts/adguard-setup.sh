@@ -3,6 +3,7 @@
 #
 # Auf dem Gerät installiert als:  /usr/local/sbin/adguard-setup
 # Aufruf:                         sudo adguard-setup
+#                                 sudo adguard-setup --update   (Projekt-Update von GitHub)
 #
 # Schritte (jeder einzeln überspringbar):
 #   0. nur beim ersten Lauf: Backup von USB-Stick übernehmen (AdGuard und/oder
@@ -23,7 +24,16 @@ set -euo pipefail
 STATE_DIR="/var/lib/adguard-setup"
 DONE_FILE="$STATE_DIR/setup.done"
 SETUP_CONF="/etc/adguard-setup.conf"
+# Formatversion von /etc/adguard-setup.conf. Erhöhen, wenn sich Bedeutung oder
+# Format eines Eintrags ändert (dann beim Einlesen umrechnen). Neue Einträge
+# brauchen keine neue Version: Fehlende Werte werden einfach normal abgefragt.
+CONF_VERSION=1
 ADGUARD_BACKUP="/usr/local/sbin/adguard-backup"
+
+# Projekt-Update (sudo adguard-setup --update)
+SETUP_DIR="/opt/adguard-setup"
+# GitHub-Repo, aus dem Updates kommen (beim ISO-Bau in $SETUP_DIR/REPO hinterlegt)
+DEFAULT_REPO="chris0688/AdGuard_Wyse3040"
 
 NEED_REBOOT=0
 
@@ -154,6 +164,7 @@ save_settings() {
     {
         echo "# adguard-setup – gewählte Einstellungen (wird von adguard-backup mitgesichert)"
         echo "# Stand: $(date '+%d.%m.%Y %H:%M')"
+        echo "CONF_VERSION=$CONF_VERSION"
         echo "HOSTNAME=$(hostname)"
         echo "REBOOT_TIME=$(current_reboot_time)"
         echo "REBOOT_MODE=$reboot_mode"
@@ -546,6 +557,118 @@ step_network() {
     NEED_REBOOT=1
 }
 
+# ---------------------------------------------------------------- Projekt-Update
+
+# Installierte Projektversion, z.B. "v1.0.0" (erstes Wort aus $SETUP_DIR/VERSION)
+installed_version() {
+    awk 'NR == 1 {print $1}' "$SETUP_DIR/VERSION" 2>/dev/null
+}
+
+# version_gt A B -> wahr, wenn A neuer ist als B (v1.0.10 > v1.0.9)
+version_gt() {
+    [[ $1 != "$2" && $(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n1) == "$1" ]]
+}
+
+# Abschnitte aus CHANGELOG.md, die neuer als die installierte Version sind
+# (bei unbekannter Version nur der neueste Abschnitt)
+show_changes() {
+    local file="$1" from="$2" line ver show=0 shown=0
+    [[ -f $file ]] || { echo "  (keine Änderungsliste vorhanden)"; return; }
+    while IFS= read -r line; do
+        if [[ $line =~ ^##[[:space:]]+(v[0-9][0-9A-Za-z.-]*) ]]; then
+            ver="${BASH_REMATCH[1]}"
+            show=0
+            if [[ $from =~ ^v[0-9] ]]; then
+                version_gt "$ver" "$from" && show=1
+            else
+                (( shown == 0 )) && show=1
+            fi
+            (( show )) && shown=$((shown + 1))
+        fi
+        (( show )) && echo "  $line"
+    done < "$file"
+    (( shown )) || echo "  (keine Einträge gefunden)"
+}
+
+do_update() {
+    local repo current latest tmp
+    repo="$(cat "$SETUP_DIR/REPO" 2>/dev/null || true)"
+    [[ $repo =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || repo="$DEFAULT_REPO"
+    current="$(installed_version)"
+
+    info "Projekt-Update (AdGuard-Wyse3040)"
+    echo "Suche nach der neuesten Version auf github.com/$repo ..."
+    latest="$(curl -fsSL --max-time 20 "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null \
+              | sed -n 's/^[[:space:]]*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+    if [[ ! $latest =~ ^v[0-9][0-9A-Za-z.-]*$ ]]; then
+        err "Konnte die neueste Version nicht ermitteln (Internet? GitHub erreichbar?)."
+        return 1
+    fi
+
+    echo
+    echo "  Installiert:  ${current:-unbekannt}"
+    echo "  Verfügbar:    $latest"
+    if [[ $current == "$latest" ]] || { [[ $current =~ ^v[0-9] ]] && ! version_gt "$latest" "$current"; }; then
+        echo
+        info "Du hast bereits die neueste Version ($current)."
+        return 0
+    fi
+
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' EXIT   # Aufruf endet direkt nach do_update (siehe main)
+    if ! curl -fsSL --max-time 120 "https://github.com/$repo/archive/refs/tags/$latest.tar.gz" \
+            | tar -xz -C "$tmp" --strip-components=1 \
+       || [[ ! -f $tmp/scripts/install.sh ]]; then
+        err "Download von $latest fehlgeschlagen – nichts geändert."
+        return 1
+    fi
+
+    echo
+    echo "  Änderungen:"
+    echo "  ----------------------------------------------------------------"
+    show_changes "$tmp/CHANGELOG.md" "$current"
+    echo "  ----------------------------------------------------------------"
+    echo "  Alle Details: https://github.com/$repo/releases"
+    echo
+    warn "BITTE VOR DEM UPDATE LESEN"
+    echo "    - Das Update ändert Skripte und Systemeinstellungen dieses Geräts."
+    echo "      Eigene Änderungen an Dateien dieses Projekts werden überschrieben."
+    echo "    - AdGuard Home selbst wird NICHT aktualisiert (das geht im"
+    echo "      AdGuard-Webinterface)."
+    echo "    - Lies die Änderungen oben und entscheide, ob du sie brauchst."
+    echo "      Läuft alles, ist ein Update nicht nötig."
+    echo "    - Ein ZURÜCK zur bisherigen Version ist NICHT vorgesehen, nur über"
+    echo "      eine Neuinstallation (danach Backup vom USB-Stick einspielen)."
+    echo "    - Vorher wird automatisch ein Backup der Einstellungen angelegt."
+    echo
+    local answer
+    read -rp "Update jetzt installieren? Zum Bestätigen \"ja\" eingeben: " answer
+    if [[ ${answer,,} != ja ]]; then
+        echo "Abgebrochen – nichts geändert."
+        return 0
+    fi
+
+    info "Sichere Einstellungen ..."
+    [[ -x $ADGUARD_BACKUP ]] && "$ADGUARD_BACKUP" --auto || true
+
+    info "Spiele $latest ein ..."
+    rm -rf "$SETUP_DIR.new"
+    cp -a "$tmp" "$SETUP_DIR.new"
+    echo "$latest (Update vom $(date '+%d.%m.%Y'))" > "$SETUP_DIR.new/VERSION"
+    echo "$repo" > "$SETUP_DIR.new/REPO"
+    chmod 755 "$SETUP_DIR.new" "$SETUP_DIR.new"/scripts/*.sh
+    rm -rf "$SETUP_DIR"
+    mv "$SETUP_DIR.new" "$SETUP_DIR"
+    if ! "$SETUP_DIR/scripts/install.sh" > /var/log/adguard-setup-update.log 2>&1; then
+        err "Beim Einspielen ist ein Fehler aufgetreten – Details: /var/log/adguard-setup-update.log"
+        return 1
+    fi
+
+    info "Fertig. Installiert: $latest"
+    echo
+    /etc/update-motd.d/99-custom-motd 2>/dev/null || true
+}
+
 # ---------------------------------------------------------------- main
 
 main() {
@@ -553,6 +676,18 @@ main() {
         err "Bitte als root ausführen: sudo $0"
         exit 1
     fi
+
+    case "${1:-}" in
+        --update)
+            # exit direkt hier: install.sh ersetzt dieses Skript, Bash soll danach
+            # nichts mehr aus der Datei nachlesen
+            do_update
+            exit $? ;;
+        "") ;;
+        *)  echo "Aufruf: sudo adguard-setup            Grundeinrichtung"
+            echo "        sudo adguard-setup --update   dieses Projekt aktualisieren (nicht AdGuard)"
+            exit 2 ;;
+    esac
 
     echo "======================================================"
     echo "  AdGuard Home – Grundeinrichtung"

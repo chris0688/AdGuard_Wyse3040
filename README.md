@@ -26,6 +26,7 @@ Gebaut für den Wyse 3040, funktioniert aber auch auf
 - [USB-Stick (ISO) bauen](#usb-stick-iso-bauen)
 - [Alternative: Debian selbst installieren](#alternative-debian-selbst-installieren)
 - [Grundeinrichtung: `adguard-setup`](#grundeinrichtung-adguard-setup)
+- [Projekt aktualisieren](#projekt-aktualisieren)
 - [Konfiguration ändern](#konfiguration-ändern)
 - [Neues Gerät aus Backup aufsetzen](#neues-gerät-aus-backup-aufsetzen)
 - [Wartung & Troubleshooting](#wartung--troubleshooting)
@@ -274,6 +275,29 @@ ist eine Weboberfläche für das Linux-System unter **`https://<IP>:9090`**
 Die Adresse steht nach der Installation auch im Login-Banner und in der
 Begrüßung. Die Browser-Warnung zum Zertifikat beim ersten Aufruf ist normal
 (selbst signiert).
+
+## Projekt aktualisieren
+
+Neue Versionen dieses Projekts (Skripte, Banner, Einstellungen) lassen sich ohne
+Neuinstallation einspielen:
+
+```bash
+sudo adguard-setup --update
+```
+
+Das prüft das neueste [Release](../../releases), zeigt die Änderungen aus der
+[CHANGELOG.md](CHANGELOG.md) und fragt nach. Zum Bestätigen muss `ja`
+eingegeben werden. Vor dem Einspielen wird automatisch ein Backup angelegt.
+
+- Das Update läuft **nur auf Befehl**, nie automatisch. Läuft alles, ist es
+  nicht nötig. Vorher die Änderungen lesen und entscheiden, ob man sie braucht.
+- **AdGuard Home** selbst wird dabei **nicht** aktualisiert (das geht im
+  AdGuard-Webinterface), die normalen Debian-Updates laufen ohnehin automatisch.
+- Eigene Änderungen an Dateien dieses Projekts auf dem Gerät werden überschrieben.
+- Ein **Zurück** zur vorherigen Version gibt es nicht, nur über eine
+  [Neuinstallation mit Backup](#neues-gerät-aus-backup-aufsetzen).
+- Änderungen am Installer (z.B. Partitionierung) wirken nur bei einer
+  Neuinstallation; die CHANGELOG kennzeichnet sie.
 
 ## Konfiguration ändern
 

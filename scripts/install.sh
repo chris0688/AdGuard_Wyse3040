@@ -14,8 +14,10 @@ UFW_RULES=(
     "53"         # DNS (tcp + udp)
     "80/tcp"     # AdGuard Webinterface
     "443"        # AdGuard Webinterface HTTPS / DNS-over-HTTPS
-    "3000/tcp"   # AdGuard Setup-Assistent (nur bis zur Ersteinrichtung nötig)
 )
+# AdGuard Setup-Assistent: nur öffnen, solange AdGuard noch nicht eingerichtet ist.
+# Sonst würde ein Projekt-Update den (laut README geschlossenen) Port wieder öffnen.
+[[ -f /opt/AdGuardHome/AdGuardHome.yaml ]] || UFW_RULES+=("3000/tcp")
 
 if [[ $EUID -ne 0 ]]; then
     echo "Bitte als root ausführen (sudo $0)." >&2
