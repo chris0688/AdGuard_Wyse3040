@@ -718,9 +718,13 @@ main() {
             # für die Begrüßung: gibt es Fragen, die noch nie beantwortet wurden?
             check_settings
             exit $? ;;
+        --version)
+            echo "AdGuard-Wyse3040 $(cat "$SETUP_DIR/VERSION" 2>/dev/null || echo unbekannt)"
+            exit 0 ;;
         "") ;;
-        *)  echo "Aufruf: sudo adguard-setup            Grundeinrichtung"
-            echo "        sudo adguard-setup --update   dieses Projekt aktualisieren (nicht AdGuard)"
+        *)  echo "Aufruf: sudo adguard-setup             Grundeinrichtung"
+            echo "        sudo adguard-setup --update    dieses Projekt aktualisieren (nicht AdGuard)"
+            echo "        sudo adguard-setup --version   installierte Projektversion anzeigen"
             exit 2 ;;
     esac
 

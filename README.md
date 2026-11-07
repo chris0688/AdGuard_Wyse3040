@@ -288,6 +288,7 @@ sudo adguard-setup --update
 Das prüft das neueste [Release](../../releases), zeigt die Änderungen aus der
 [CHANGELOG.md](CHANGELOG.md) und fragt nach. Zum Bestätigen muss `ja`
 eingegeben werden. Vor dem Einspielen wird automatisch ein Backup angelegt.
+Welche Version installiert ist, zeigt `sudo adguard-setup --version`.
 
 - Das Update läuft **nur auf Befehl**, nie automatisch. Läuft alles, ist es
   nicht nötig. Vorher die Änderungen lesen und entscheiden, ob man sie braucht.

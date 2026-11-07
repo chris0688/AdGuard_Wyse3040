@@ -4,6 +4,10 @@ Neueste Version oben. Diese Liste zeigt auch `sudo adguard-setup --update` vor
 einem Update an. Änderungen, die nur bei einer **Neuinstallation** wirken (z.B.
 Installer, Partitionierung), sind entsprechend gekennzeichnet.
 
+## v0.9.1
+
+- Neu: `sudo adguard-setup --version` zeigt die installierte Projektversion.
+
 ## v0.9.0
 
 - Neu: **Projekt-Update** mit `sudo adguard-setup --update`. Es prüft das neueste
