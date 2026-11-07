@@ -10,7 +10,7 @@ Installer, Partitionierung), sind entsprechend gekennzeichnet.
   gesetzt“ und ließ den Download-Ordner in `/tmp` liegen. Die Meldung kommt
   beim Update auf diese Version noch ein letztes Mal.
 - Begrüßung: Der Hinweis „Das Setup hat neue Einstellungen“ steht jetzt
-  auffälliger ganz oben unter „SYSTEMSTATUS“.
+  auffälliger ganz unten, direkt über der Eingabezeile, mit rotem „[!] NEU“.
 
 ## v0.9.1
 
