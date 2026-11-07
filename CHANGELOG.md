@@ -13,6 +13,11 @@ Installer, Partitionierung), sind entsprechend gekennzeichnet.
   AdGuard nicht eingerichtet ist. Ein geschlossener Port bleibt so auch nach
   einem Update geschlossen.
 - `adguard-setup.conf` enthält jetzt eine Formatversion (`CONF_VERSION`).
+- Kommt nach einem Update eine neue Frage ins Setup, weist die Begrüßung darauf
+  hin, `sudo adguard-setup` erneut auszuführen.
+- Fehler behoben: Beim erneuten Ausführen von `adguard-setup` schlug der
+  Neustart-Schritt immer „wöchentlich, Sonntag“ vor statt des eingerichteten
+  Plans. Jetzt übernimmt Enter den bisherigen Plan.
 
 ## v0.8.4
 

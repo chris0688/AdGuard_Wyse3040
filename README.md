@@ -298,6 +298,9 @@ eingegeben werden. Vor dem Einspielen wird automatisch ein Backup angelegt.
   [Neuinstallation mit Backup](#neues-gerät-aus-backup-aufsetzen).
 - Änderungen am Installer (z.B. Partitionierung) wirken nur bei einer
   Neuinstallation; die CHANGELOG kennzeichnet sie.
+- Bringt ein Update **neue Fragen ins Setup**, zeigt die Begrüßung
+  „Das Setup hat neue Einstellungen“. Dann `sudo adguard-setup` ausführen; die
+  bisherigen Antworten lassen sich mit Enter übernehmen.
 
 ## Konfiguration ändern
 

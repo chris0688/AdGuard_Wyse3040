@@ -163,6 +163,10 @@ echo -e "$LINE"
 if [[ ! -f /var/lib/adguard-setup/setup.done ]]; then
     echo -e "  ${YELLOW}Tipp:${NC} Hostname und feste IP einrichten mit:  ${WHITE}sudo adguard-setup${NC}"
     echo -e "$LINE"
+elif ! /usr/local/sbin/adguard-setup --check >/dev/null 2>&1; then
+    # Nach einem Projekt-Update: das Setup hat neue Fragen, die hier noch nie beantwortet wurden
+    echo -e "  ${YELLOW}Neu:${NC} Das Setup hat neue Einstellungen. Bitte ausführen:  ${WHITE}sudo adguard-setup${NC}"
+    echo -e "$LINE"
 fi
 
 echo -e "  ${YELLOW}Befehle:${NC}"

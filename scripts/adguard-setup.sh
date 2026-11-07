@@ -28,6 +28,10 @@ SETUP_CONF="/etc/adguard-setup.conf"
 # Format eines Eintrags ändert (dann beim Einlesen umrechnen). Neue Einträge
 # brauchen keine neue Version: Fehlende Werte werden einfach normal abgefragt.
 CONF_VERSION=1
+# Alle Einträge, die das Setup speichert. Neue Frage im Setup = neuen Eintrag hier
+# und in save_settings ergänzen; Geräte ohne diesen Eintrag bekommen dann in der
+# Begrüßung den Hinweis, adguard-setup erneut auszuführen.
+SETTINGS_KEYS=(HOSTNAME REBOOT_TIME REBOOT_MODE REBOOT_DAY COCKPIT NET_MODE NET_ADDR NET_GW NET_DNS1 NET_DNS2)
 ADGUARD_BACKUP="/usr/local/sbin/adguard-backup"
 
 # Projekt-Update (sudo adguard-setup --update)
@@ -117,11 +121,25 @@ ask_ipv4() {   # ask_ipv4 "Frage" "Default"
 load_presets() {
     local k v
     while IFS='=' read -r k v; do
-        case "$k" in
-            HOSTNAME|REBOOT_TIME|REBOOT_MODE|REBOOT_DAY|COCKPIT|NET_MODE|NET_ADDR|NET_GW|NET_DNS1|NET_DNS2)
-                [[ $v =~ ^[A-Za-z0-9.:/_-]*$ ]] && PRESET[$k]="$v" ;;
-        esac
+        if [[ " ${SETTINGS_KEYS[*]} " == *" $k "* && $v =~ ^[A-Za-z0-9.:/_-]*$ ]]; then
+            PRESET[$k]="$v"
+        fi
     done < "$1"
+}
+
+# Neue Fragen im Setup erkennen (z.B. nach einem Projekt-Update): Jeder Schritt
+# speichert seine Antwort als Eintrag in /etc/adguard-setup.conf. Fehlt dort ein
+# Eintrag aus SETTINGS_KEYS, wurde diese Frage auf dem Gerät noch nie beantwortet.
+# Ausgabe: fehlende Einträge; Rückgabe 1, wenn welche fehlen.
+check_settings() {
+    local k missing=()
+    [[ -f $SETUP_CONF ]] || return 0   # Setup noch nie gelaufen: darauf weist die Begrüßung schon hin
+    for k in "${SETTINGS_KEYS[@]}"; do
+        grep -q "^$k=" "$SETUP_CONF" || missing+=("$k")
+    done
+    (( ${#missing[@]} == 0 )) && return 0
+    echo "${missing[*]}"
+    return 1
 }
 
 # Aktuelle Uhrzeit für Neustarts (aus der apt-Einstellung), sonst 04:00
@@ -146,18 +164,25 @@ detect_network_state() {
     fi
 }
 
-# Schreibt die aktuellen Einstellungen nach /etc/adguard-setup.conf
-save_settings() {
-    local reboot_mode=none reboot_day="" cal cockpit=no
+# Eingerichteter Neustart-Plan -> "none", "daily" oder "weekly <Tag>" (z.B. "weekly Sun")
+current_reboot_plan() {
+    local cal
     if systemctl is-enabled --quiet adguard-reboot.timer 2>/dev/null && [[ -f $REBOOT_TIMER ]]; then
         cal="$(sed -n 's/^OnCalendar=//p' "$REBOOT_TIMER")"
         if [[ $cal == '*-*-*'* ]]; then
-            reboot_mode=daily
+            echo daily
         else
-            reboot_mode=weekly
-            reboot_day="${cal%% *}"
+            echo "weekly ${cal%% *}"
         fi
+    else
+        echo none
     fi
+}
+
+# Schreibt die aktuellen Einstellungen nach /etc/adguard-setup.conf
+save_settings() {
+    local reboot_mode reboot_day="" cockpit=no
+    read -r reboot_mode reboot_day < <(current_reboot_plan)
     dpkg -s cockpit-ws &>/dev/null && cockpit=yes
     [[ -n $NET_MODE ]] || detect_network_state
 
@@ -290,10 +315,16 @@ step_reboot() {
     local def_time def_regular=j def_freq=1 def_day=7
     local -a DAYS_DE=(Montag Dienstag Mittwoch Donnerstag Freitag Samstag Sonntag)
     local -a DAYS_EN=(Mon Tue Wed Thu Fri Sat Sun)
+    local plan_mode="${PRESET[REBOOT_MODE]:-}" plan_day="${PRESET[REBOOT_DAY]:-}"
     def_time="${PRESET[REBOOT_TIME]:-$(current_reboot_time)}"
-    [[ ${PRESET[REBOOT_MODE]:-} == none ]] && def_regular=n
-    [[ ${PRESET[REBOOT_MODE]:-} == daily ]] && def_freq=2
-    case "${PRESET[REBOOT_DAY]:-}" in
+    # Ohne Backup-Werte den eingerichteten Plan vorschlagen, damit Enter beim
+    # erneuten Ausführen nichts verändert. Beim allerersten Lauf: Empfehlung.
+    if [[ -z $plan_mode && -f $DONE_FILE ]]; then
+        read -r plan_mode plan_day < <(current_reboot_plan)
+    fi
+    [[ $plan_mode == none ]] && def_regular=n
+    [[ $plan_mode == daily ]] && def_freq=2
+    case "$plan_day" in
         Mon) def_day=1 ;; Tue) def_day=2 ;; Wed) def_day=3 ;; Thu) def_day=4 ;;
         Fri) def_day=5 ;; Sat) def_day=6 ;; Sun) def_day=7 ;;
     esac
@@ -682,6 +713,10 @@ main() {
             # exit direkt hier: install.sh ersetzt dieses Skript, Bash soll danach
             # nichts mehr aus der Datei nachlesen
             do_update
+            exit $? ;;
+        --check)
+            # für die Begrüßung: gibt es Fragen, die noch nie beantwortet wurden?
+            check_settings
             exit $? ;;
         "") ;;
         *)  echo "Aufruf: sudo adguard-setup            Grundeinrichtung"
