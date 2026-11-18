@@ -1,0 +1,11 @@
+# Minimum installed version required to update to this version.
+# Mindestens installierte Version, um auf diese Version zu aktualisieren.
+#
+# Empty = any version may update directly. / Leer = jede Version darf direkt aktualisieren.
+#
+# Set this (e.g. a line "v1.4.0") only when removing migration code from
+# scripts/migrate.sh. "sudo system-setup --update" then refuses older devices
+# BEFORE changing anything and names the intermediate step.
+# Nur setzen (z.B. Zeile "v1.4.0"), wenn Umstellungscode aus scripts/migrate.sh
+# entfernt wird. Das Update lehnt ältere Geräte dann ab, BEVOR es etwas ändert,
+# und nennt den Zwischenschritt.

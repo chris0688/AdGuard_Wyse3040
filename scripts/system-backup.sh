@@ -1,32 +1,32 @@
 #!/usr/bin/env bash
-# adguard-backup – Versionen der AdGuard-Einstellungen sichern und wiederherstellen.
+# system-backup – Versionen der AdGuard-Einstellungen sichern und wiederherstellen.
 #
-# Auf dem Gerät: /usr/local/sbin/adguard-backup
+# Auf dem Gerät: /usr/local/sbin/system-backup
 #
-#   sudo adguard-backup          Menü: Versionen anzeigen, sichern, wiederherstellen,
+#   sudo system-backup          Menü: Versionen anzeigen, sichern, wiederherstellen,
 #                                auf USB-Stick kopieren / von USB-Stick wiederherstellen,
 #                                Version zum Herunterladen bereitlegen
-#   adguard-backup --auto        (täglich per Timer) sichert nur, wenn sich die
+#   system-backup --auto        (täglich per Timer) sichert nur, wenn sich die
 #                                Einstellungen seit der letzten Sicherung geändert haben,
 #                                und kopiert die neueste Version auf eingesteckte USB-Sticks
 #                                mit Ordner AdGuard-Backup/
 #
-# Intern (von adguard-setup genutzt):
-#   adguard-backup --fetch-usb DIR     neueste Sicherung von einem USB-Stick nach DIR holen
-#   adguard-backup --restore-file DATEI  ohne Rückfrage wiederherstellen
+# Intern (von system-setup genutzt):
+#   system-backup --fetch-usb DIR     neueste Sicherung von einem USB-Stick nach DIR holen
+#   system-backup --restore-file DATEI  ohne Rückfrage wiederherstellen
 #
 # Gesichert werden:
 #   AdGuardHome-<datum>.yaml   AdGuard-Einstellungen, die letzten KEEP Versionen
-#   adguard-setup.conf         Einstellungen aus adguard-setup (nur der aktuelle Stand)
+#   system-setup.conf         Einstellungen aus system-setup (nur der aktuelle Stand)
 #
 # Texte: lang/<sprache>.sh, Abschnitt T_BACKUP_* (siehe scripts/i18n.sh)
 set -euo pipefail
-. /usr/local/share/adguard/i18n.sh
+. /usr/local/share/system-setup/i18n.sh
 
 AGH_CONF="/opt/AdGuardHome/AdGuardHome.yaml"
 AGH_SERVICE="AdGuardHome"
-SETUP_CONF="/etc/adguard-setup.conf"
-BACKUP_DIR="/var/backups/adguard"
+SETUP_CONF="/etc/system-setup.conf"
+BACKUP_DIR="/var/backups/system-backup"
 KEEP=7
 USB_DIR_NAME="AdGuard-Backup"
 USB_KEEP=30
@@ -77,13 +77,13 @@ backup_now() {
     return 0
 }
 
-# Einstellungen aus adguard-setup sichern (nur der aktuelle Stand, ändert sich selten)
+# Einstellungen aus system-setup sichern (nur der aktuelle Stand, ändert sich selten)
 backup_setup_conf() {
     [[ -f $SETUP_CONF ]] || return 0
     mkdir -p "$BACKUP_DIR"
     chmod 700 "$BACKUP_DIR"
-    if ! cmp -s "$SETUP_CONF" "$BACKUP_DIR/adguard-setup.conf"; then
-        install -m 600 "$SETUP_CONF" "$BACKUP_DIR/adguard-setup.conf"
+    if ! cmp -s "$SETUP_CONF" "$BACKUP_DIR/system-setup.conf"; then
+        install -m 600 "$SETUP_CONF" "$BACKUP_DIR/system-setup.conf"
         echo "$T_BACKUP_SETTINGS_SAVED"
     fi
 }
@@ -121,7 +121,7 @@ show_list() {
     for f in "${BACKUPS[@]}"; do
         printf '   •  %s   %6s\n' "$(pretty_date "$f")" "$(adguard_decimal "$(LC_ALL=C.UTF-8 du -h "$f" | cut -f1)")"
     done
-    [[ -f $BACKUP_DIR/adguard-setup.conf ]] && echo "  + $T_BACKUP_SYSTEM_SETTINGS"
+    [[ -f $BACKUP_DIR/system-setup.conf ]] && echo "  + $T_BACKUP_SYSTEM_SETTINGS"
     return 0
 }
 
@@ -264,7 +264,7 @@ mount_dev() {
     MNT="$(findmnt -nro TARGET -S "$1" 2>/dev/null | head -n1 || true)"
     MOUNTED_BY_US=0
     [[ -n $MNT ]] && return 0
-    MNT="$(mktemp -d /mnt/adguard-usb.XXXX)"
+    MNT="$(mktemp -d /mnt/system-usb.XXXX)"
     if ! mount -o nosuid,nodev,noexec "$1" "$MNT" 2>/dev/null \
        && ! mount -t ntfs3 -o nosuid,nodev,noexec "$1" "$MNT" 2>/dev/null; then
         rmdir "$MNT"
@@ -333,10 +333,12 @@ copy_to_usb() {
     else
         files=("$CHOSEN")
     fi
-    [[ -f $BACKUP_DIR/adguard-setup.conf ]] && files+=("$BACKUP_DIR/adguard-setup.conf")
+    [[ -f $BACKUP_DIR/system-setup.conf ]] && files+=("$BACKUP_DIR/system-setup.conf")
 
     mount_usb || return 0
     if copy_into_usb_dir "${files[@]}"; then
+        # Bis v1.1 hieß die Datei adguard-setup.conf – durch die neue ersetzt
+        if [[ -f $MNT/$USB_DIR_NAME/system-setup.conf ]]; then rm -f "$MNT/$USB_DIR_NAME/adguard-setup.conf"; fi
         info "$(t "$T_BACKUP_COPIED" "$USB_DIR_NAME")"
         echo "$T_BACKUP_COPY_AUTO_HINT"
     else
@@ -395,19 +397,21 @@ auto_copy_to_usb() {
                     t "$T_BACKUP_AUTO_COPY_FAILED\n" "${p#*|}" >&2
                 fi
             fi
-            if [[ -f $BACKUP_DIR/adguard-setup.conf ]] \
-               && ! cmp -s "$BACKUP_DIR/adguard-setup.conf" "$dir/adguard-setup.conf"; then
-                copy_into_usb_dir "$BACKUP_DIR/adguard-setup.conf" \
+            if [[ -f $BACKUP_DIR/system-setup.conf ]] \
+               && ! cmp -s "$BACKUP_DIR/system-setup.conf" "$dir/system-setup.conf"; then
+                copy_into_usb_dir "$BACKUP_DIR/system-setup.conf" \
                     && t "$T_BACKUP_AUTO_SETTINGS_COPIED\n" "${p#*|}"
             fi
+            # Bis v1.1 hieß die Datei adguard-setup.conf – durch die neue ersetzt
+            if [[ -f $dir/system-setup.conf ]]; then rm -f "$dir/adguard-setup.conf"; fi
         fi
         umount_dev leise
     done < <(find_usb_partitions)
 }
 
-# Für --fetch-usb DIR (adguard-setup bei der Ersteinrichtung): sucht auf allen
+# Für --fetch-usb DIR (system-setup bei der Ersteinrichtung): sucht auf allen
 # Sticks die neueste Sicherung und legt sie mit den Systemeinstellungen nach DIR:
-#   DIR/AdGuardHome.yaml, DIR/adguard-setup.conf (falls vorhanden), DIR/source.txt
+#   DIR/AdGuardHome.yaml, DIR/system-setup.conf (falls vorhanden), DIR/source.txt
 # Rückgabe 1, wenn nichts gefunden wurde.
 fetch_from_usb() {
     local target="$1" p newest best="" best_name=""
@@ -419,16 +423,20 @@ fetch_from_usb() {
             best_name="$(basename "$newest")"
             best="${p#*|}"
             cp "$newest" "$target/AdGuardHome.yaml"
-            rm -f "$target/adguard-setup.conf"
-            [[ -f $MNT/$USB_DIR_NAME/adguard-setup.conf ]] \
-                && cp "$MNT/$USB_DIR_NAME/adguard-setup.conf" "$target/adguard-setup.conf"
+            rm -f "$target/system-setup.conf"
+            # Sticks bis v1.1 haben noch adguard-setup.conf (gleicher Inhalt)
+            if [[ -f $MNT/$USB_DIR_NAME/system-setup.conf ]]; then
+                cp "$MNT/$USB_DIR_NAME/system-setup.conf" "$target/system-setup.conf"
+            elif [[ -f $MNT/$USB_DIR_NAME/adguard-setup.conf ]]; then
+                cp "$MNT/$USB_DIR_NAME/adguard-setup.conf" "$target/system-setup.conf"
+            fi
         fi
         umount_dev leise
     done < <(find_usb_partitions)
 
     [[ -n $best_name ]] || return 1
     local text
-    if [[ -f $target/adguard-setup.conf ]]; then
+    if [[ -f $target/system-setup.conf ]]; then
         text="$(t "$T_BACKUP_FOUND_WITH_SETTINGS" "$(pretty_date "$best_name")" "$best")"
     else
         text="$(t "$T_BACKUP_FOUND" "$(pretty_date "$best_name")" "$best")"
@@ -439,7 +447,7 @@ fetch_from_usb() {
 # ---------------------------------------------------------------- main
 
 if [[ $EUID -ne 0 ]]; then
-    err "$(t "$T_NEED_ROOT" adguard-backup)"
+    err "$(t "$T_NEED_ROOT" system-backup)"
     exit 1
 fi
 
@@ -451,11 +459,11 @@ case "${1:-}" in
         auto_copy_to_usb "$(list_backups | head -n1)"
         exit 0 ;;
     --fetch-usb)
-        [[ -d ${2:-} ]] || { err "Usage: adguard-backup --fetch-usb DIRECTORY"; exit 2; }
+        [[ -d ${2:-} ]] || { err "Usage: system-backup --fetch-usb DIRECTORY"; exit 2; }
         fetch_from_usb "$2"
         exit $? ;;
     --restore-file)
-        [[ -f ${2:-} ]] || { err "Usage: adguard-backup --restore-file FILE"; exit 2; }
+        [[ -f ${2:-} ]] || { err "Usage: system-backup --restore-file FILE"; exit 2; }
         restore_file "$2" "$2" --yes
         exit $? ;;
 esac

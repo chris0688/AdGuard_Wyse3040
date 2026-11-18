@@ -24,6 +24,18 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+# Umstellung v1.1 -> v1.2: Der Projektordner hieß /opt/adguard-setup, und das
+# Update-Skript bis v1.1 spielt die neue Version noch dorthin. Umziehen und von
+# dort neu starten (siehe auch scripts/migrate.sh).
+if [[ $REPO_DIR == /opt/adguard-setup ]]; then
+    rm -rf /opt/system-setup
+    mv /opt/adguard-setup /opt/system-setup
+    exec /opt/system-setup/scripts/install.sh "$@"
+fi
+
+# Einmalige Umstellungen älterer Installationen (alte Namen, Pfade)
+"$REPO_DIR/scripts/migrate.sh"
+
 echo "==> Copying rootfs/ to / ..."
 tar -C "$REPO_DIR/rootfs" -cf - . | tar -C / --no-same-owner -xvf -
 
@@ -35,7 +47,7 @@ tar -C "$REPO_DIR/rootfs" -cf - . | tar -C / --no-same-owner -xvf -
 # GAR KEINE Tastatur eingerichtet ist, das Layout der Region nehmen – eine
 # vorhandene Einstellung wird nie geändert.
 if [[ ! -s /etc/default/keyboard ]]; then
-    keymap="$(sed -n 's/^KEYMAP=//p' /etc/adguard-region.conf | tr -d '"')"
+    keymap="$(sed -n 's/^KEYMAP=//p' /etc/system-region.conf | tr -d '"')"
     [[ $keymap =~ ^[a-z]{2,3}$ ]] || keymap=us
     echo "==> Keyboard layout: $keymap"
     cat > /etc/default/keyboard <<EOF
@@ -56,11 +68,11 @@ EOF
     fi
 fi
 
-echo "==> Installing texts to /usr/local/share/adguard ..."
-install -d /usr/local/share/adguard/lang
-install -m 644 "$REPO_DIR/scripts/i18n.sh" /usr/local/share/adguard/i18n.sh
-rm -f /usr/local/share/adguard/lang/*.sh
-install -m 644 "$REPO_DIR"/lang/*.sh /usr/local/share/adguard/lang/
+echo "==> Installing texts to /usr/local/share/system-setup ..."
+install -d /usr/local/share/system-setup/lang
+install -m 644 "$REPO_DIR/scripts/i18n.sh" /usr/local/share/system-setup/i18n.sh
+rm -f /usr/local/share/system-setup/lang/*.sh
+install -m 644 "$REPO_DIR"/lang/*.sh /usr/local/share/system-setup/lang/
 
 # Gerätespezifische Anpassungen (hardware/<gerät>/), nur wenn das Gerät erkannt wird
 # shellcheck source=hardware.sh
@@ -82,11 +94,11 @@ chmod 755 /etc/update-motd.d/*
 : > /etc/motd
 [[ -f /etc/update-motd.d/10-uname ]] && chmod -x /etc/update-motd.d/10-uname
 
-echo "==> Installing the adguard commands to /usr/local/sbin ..."
-install -m 755 "$REPO_DIR/scripts/adguard-setup.sh"  /usr/local/sbin/adguard-setup
-install -m 755 "$REPO_DIR/scripts/adguard-banner.sh" /usr/local/sbin/adguard-banner
-install -m 755 "$REPO_DIR/scripts/adguard-backup.sh" /usr/local/sbin/adguard-backup
-install -m 755 "$REPO_DIR/scripts/adguard-usb.sh"    /usr/local/sbin/adguard-usb
+echo "==> Installing the commands to /usr/local/sbin ..."
+install -m 755 "$REPO_DIR/scripts/system-setup.sh"  /usr/local/sbin/system-setup
+install -m 755 "$REPO_DIR/scripts/system-banner.sh" /usr/local/sbin/system-banner
+install -m 755 "$REPO_DIR/scripts/system-backup.sh" /usr/local/sbin/system-backup
+install -m 755 "$REPO_DIR/scripts/system-usb.sh"    /usr/local/sbin/system-usb
 install -m 755 "$REPO_DIR/scripts/status.sh"         /usr/local/bin/status
 
 # "status" darf die Übersicht ohne Passwort mit Admin-Rechten anzeigen.
@@ -94,7 +106,7 @@ install -m 755 "$REPO_DIR/scripts/status.sh"         /usr/local/bin/status
 SUDOERS_TMP="$(mktemp)"
 echo '%sudo ALL=(root) NOPASSWD: /etc/update-motd.d/99-custom-motd' > "$SUDOERS_TMP"
 if visudo -cqf "$SUDOERS_TMP"; then
-    install -m 440 "$SUDOERS_TMP" /etc/sudoers.d/adguard-status
+    install -m 440 "$SUDOERS_TMP" /etc/sudoers.d/system-status
 else
     echo "WARNING: sudoers rule for 'status' is invalid – skipped." >&2
 fi
@@ -108,11 +120,11 @@ ufw --force enable
 
 echo "==> Reloading services ..."
 systemctl daemon-reexec          # system.conf.d (Watchdog) übernehmen
-udevadm control --reload         # USB-Stick-Meldungen (90-adguard-usb.rules)
-systemctl enable adguard-banner.service
-systemctl enable --now adguard-banner.path
-systemctl enable --now adguard-backup.timer
-/usr/local/sbin/adguard-banner
+udevadm control --reload         # USB-Stick-Meldungen (90-system-usb.rules)
+systemctl enable system-banner.service
+systemctl enable --now system-banner.path
+systemctl enable --now system-backup.timer
+/usr/local/sbin/system-banner
 systemctl restart systemd-journald
 systemctl enable --now fail2ban
 systemctl restart fail2ban

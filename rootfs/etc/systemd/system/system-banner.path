@@ -7,7 +7,7 @@ Description=Login-Banner bei Änderungen aktualisieren
 [Path]
 PathChanged=/etc/shadow
 PathChanged=/opt/AdGuardHome/AdGuardHome.yaml
-Unit=adguard-banner.service
+Unit=system-banner.service
 
 [Install]
 WantedBy=multi-user.target

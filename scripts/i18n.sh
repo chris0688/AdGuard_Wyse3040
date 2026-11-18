@@ -1,16 +1,16 @@
 # i18n.sh – lädt Texte und Regionaleinstellungen (wird mit "." eingebunden).
 #
-# Auf dem Gerät: /usr/local/share/adguard/i18n.sh
+# Auf dem Gerät: /usr/local/share/system-setup/i18n.sh
 #
-#   Region:  /etc/adguard-region.conf (erzeugt von install.sh aus region/<REGION>.conf)
+#   Region:  /etc/system-region.conf (erzeugt von install.sh aus region/<REGION>.conf)
 #   Texte:   lang/en.sh, danach lang/<TEXTS>.sh. Was in einer Sprache fehlt,
 #            bleibt dadurch automatisch englisch.
 #
-# Bewusst POSIX-sh (kein Bash), weil auch /etc/profile.d/adguard-setup.sh es lädt.
+# Bewusst POSIX-sh (kein Bash), weil auch /etc/profile.d/system-setup.sh es lädt.
 # Darf unter "set -euo pipefail" laufen.
 
-ADGUARD_SHARE="${ADGUARD_SHARE:-/usr/local/share/adguard}"
-ADGUARD_REGION_CONF="${ADGUARD_REGION_CONF:-/etc/adguard-region.conf}"
+ADGUARD_SHARE="${ADGUARD_SHARE:-/usr/local/share/system-setup}"
+ADGUARD_REGION_CONF="${ADGUARD_REGION_CONF:-/etc/system-region.conf}"
 
 # adguard_read_conf DATEI SCHLÜSSEL... – liest KEY=WERT-Zeilen (Anführungszeichen
 # um den Wert werden entfernt). Nur die genannten Schlüssel, nie als Shell-Code.
@@ -91,8 +91,8 @@ adguard_yesno() {
 # z.B. "weekly on Sunday at 04:00"; leer, wenn keiner eingerichtet ist.
 # Liest den Zeitplan (OnCalendar), nicht die Beschreibung des Timers.
 adguard_reboot_text() {
-    _ag_timer=/etc/systemd/system/adguard-reboot.timer
-    systemctl is-enabled --quiet adguard-reboot.timer 2>/dev/null || return 0
+    _ag_timer=/etc/systemd/system/system-reboot.timer
+    systemctl is-enabled --quiet system-reboot.timer 2>/dev/null || return 0
     [ -f "$_ag_timer" ] || return 0
     _ag_cal="$(sed -n 's/^OnCalendar=//p' "$_ag_timer")"
     # "*-*-* 04:00:00" oder "Sun *-*-* 04:00:00"

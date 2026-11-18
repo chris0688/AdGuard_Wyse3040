@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# adguard-usb – Infos zu eingesteckten USB-Sticks
+# system-usb – Infos zu eingesteckten USB-Sticks
 #
-# Auf dem Gerät: /usr/local/sbin/adguard-usb
+# Auf dem Gerät: /usr/local/sbin/system-usb
 #
-#   adguard-usb info           eine Zeile je Stick: Name, Dateisystem, frei/gesamt,
+#   system-usb info           eine Zeile je Stick: Name, Dateisystem, frei/gesamt,
 #                              Anzahl Backups im Ordner AdGuard-Backup/ (für "status")
 #
 # Intern:
-#   adguard-usb issue          "NAME|(DATEISYSTEM, GRÖSSE)" je Stick für den
-#                              Login-Banner (adguard-banner formatiert die Zeilen)
-#   adguard-usb event add|remove GERÄT [NAME]
-#                              (von udev, 90-adguard-usb.rules) Eintrag ins
+#   system-usb issue          "NAME|(DATEISYSTEM, GRÖSSE)" je Stick für den
+#                              Login-Banner (system-banner formatiert die Zeilen)
+#   system-usb event add|remove GERÄT [NAME]
+#                              (von udev, 90-system-usb.rules) Eintrag ins
 #                              Systemprotokoll, danach Login-Banner neu erzeugen
 #
 # Für frei/belegt wird ein nicht eingehängter Stick kurz NUR LESEND eingehängt.
 set -uo pipefail
 export LC_ALL=C.UTF-8   # feste Zahlenformate (lsblk/df), Dezimaltrennzeichen setzt die Region
-. /usr/local/share/adguard/i18n.sh
+. /usr/local/share/system-setup/i18n.sh
 
 USB_DIR_NAME="AdGuard-Backup"
 
@@ -54,7 +54,7 @@ info_line() {
         case "$fs" in vfat|exfat|ntfs|ext2|ext3|ext4) ;; *) echo "$text – $size"; return ;; esac
         opts="ro,nosuid,nodev,noexec"
         [[ $fs == ext* ]] && opts+=",noload"   # nichts schreiben, auch kein Journal
-        tmp="$(mktemp -d /run/adguard-usb.XXXX)"
+        tmp="$(mktemp -d /run/system-usb.XXXX)"
         if ! timeout 10 mount -o "$opts" "$dev" "$tmp" 2>/dev/null \
            && ! timeout 10 mount -t ntfs3 -o "$opts" "$dev" "$tmp" 2>/dev/null; then
             rmdir "$tmp"
@@ -115,19 +115,19 @@ cmd_event() {
             msg="$(printf "$T_USB_REMOVED" "${label:-$T_USB_NO_NAME} ($name)")" ;;
         *)  return 2 ;;
     esac
-    logger -t adguard-usb "$msg"
-    /usr/local/sbin/adguard-banner || true
+    logger -t system-usb "$msg"
+    /usr/local/sbin/system-banner || true
 }
 
 if [[ $EUID -ne 0 ]]; then
-    printf "$T_NEED_ROOT\n" "adguard-usb ${1:-info}" >&2
+    printf "$T_NEED_ROOT\n" "system-usb ${1:-info}" >&2
     exit 1
 fi
 
 case "${1:-info}" in
     info)  cmd_info ;;
     issue) cmd_issue ;;
-    event) [[ $# -ge 3 ]] || { echo "Usage: adguard-usb event add|remove DEVICE [NAME]" >&2; exit 2; }
+    event) [[ $# -ge 3 ]] || { echo "Usage: system-usb event add|remove DEVICE [NAME]" >&2; exit 2; }
            cmd_event "$2" "$3" "${4:-}" ;;
-    *)     echo "Usage: adguard-usb [info|issue]" >&2; exit 2 ;;
+    *)     echo "Usage: system-usb [info|issue]" >&2; exit 2 ;;
 esac

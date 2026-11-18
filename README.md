@@ -26,7 +26,7 @@ Language and country are chosen in the boot menu (English, German, more can be
 - [Repository layout](#repository-layout)
 - [Building the USB stick (ISO)](#building-the-usb-stick-iso)
 - [Alternative: install Debian yourself](#alternative-install-debian-yourself)
-- [Basic setup: `adguard-setup`](#basic-setup-adguard-setup)
+- [Basic setup: `system-setup`](#basic-setup-system-setup)
 - [Updating the project](#updating-the-project)
 - [Changing the configuration](#changing-the-configuration)
 - [Setting up a new device from a backup](#setting-up-a-new-device-from-a-backup)
@@ -67,7 +67,7 @@ stick (≥ 1 GB), and a keyboard and monitor for the installation only.
    - You must set a **new password** (see [Security](#security)).
    - The **basic setup** starts: hostname, **regular reboot**, optionally the
      Cockpit web console, **DHCP or static IP**
-     (see [`adguard-setup`](#basic-setup-adguard-setup)).
+     (see [`system-setup`](#basic-setup-system-setup)).
 7. Open **`http://<IP>:3000`** in a browser and go through the AdGuard setup
    wizard (create an admin user with a **strong password**, web interface on
    port 80, DNS on port 53). If you pick another port for the web interface,
@@ -86,7 +86,9 @@ stick (≥ 1 GB), and a keyboard and monitor for the installation only.
 
 - The user `adguard` is the administrator (via `sudo`). Direct **root login is
   disabled**, so there is no separate root password.
-- Change the password later: `passwd` (your own) or `sudo adguard-setup`.
+- Change the password later: `passwd` (your own) or `sudo system-setup`.
+- Recommended: create **your own admin user** in `sudo system-setup` and delete
+  `adguard` afterwards – the name `adguard` is published here, too.
 - Choose a separate, strong password for the **AdGuard admin** in the web
   interface as well. It is independent of the Linux password.
 - **Never** forward ports (53, 80, 443, 22, 9090) from the internet to the Wyse
@@ -100,23 +102,23 @@ stick (≥ 1 GB), and a keyboard and monitor for the installation only.
 | Base | Debian 13 "Trixie" minimal, no desktop, with SSH server. User `adguard` with sudo rights, no root login. | `installer/preseed.cfg` |
 | Partitioning | first internal disk (eMMC, NVMe or SATA; USB is skipped): EFI + one ext4 partition (`noatime`), **no swap partition** | `installer/preseed.cfg` |
 | AdGuard Home | current version in `/opt/AdGuardHome`, systemd service `AdGuardHome` | `scripts/bootstrap.sh` |
-| Login banner (before login) | colored banner with hostname, IP, AdGuard address, setup wizard if pending, web console and plugged-in USB sticks; **red warning while the default password is active**; shows progress during the initial setup | `scripts/adguard-banner.sh`, `rootfs/etc/systemd/system/adguard-banner.*` |
+| Login banner (before login) | colored banner with hostname, IP, AdGuard address, setup wizard if pending, web console and plugged-in USB sticks; **red warning while the default password is active**; shows progress during the initial setup | `scripts/system-banner.sh`, `rootfs/etc/systemd/system/system-banner.*` |
 | Welcome (after login, again with `status`) | AdGuard logo, device, installed version, system status with RAM/storage bars, temperature, AdGuard status, web console, auto-update (active + last run), auto-reboot, last backup, USB stick (free/used, backups), most important commands | `rootfs/etc/update-motd.d/99-custom-motd` |
 | Language & region | texts, date/number format and time servers according to the boot menu entry; keyboard and time zone are set by the installer | `lang/`, `region/`, `scripts/set-region.sh` |
-| Log limits | systemd journal max. 200 MB / 1 month, older entries are deleted automatically | `rootfs/etc/systemd/journald.conf.d/adguard.conf` |
+| Log limits | systemd journal max. 200 MB / 1 month, older entries are deleted automatically | `rootfs/etc/systemd/journald.conf.d/system-setup.conf` |
 | Automatic updates | `unattended-upgrades` (Debian + security), removes old kernels, **reboots at the configured time** (default 04:00) if required | `rootfs/etc/apt/apt.conf.d/20auto-upgrades`, `52unattended-upgrades-local` |
-| Regular reboot | daily or weekly at the same time (recommended), asked in `adguard-setup` | `scripts/adguard-setup.sh` |
+| Regular reboot | daily or weekly at the same time (recommended), asked in `system-setup` | `scripts/system-setup.sh` |
 | Watchdog | reboots the device automatically if the system hangs completely (if a watchdog chip exists – the Wyse 3040 has one) | `rootfs/etc/systemd/system.conf.d/watchdog.conf` |
 | Package cache | cleaned every 7 days | `rootfs/etc/apt/apt.conf.d/70autoclean` |
-| Time | automatically via NTP from the region's pool, e.g. `pool.ntp.org` (fallback: Debian pool); the welcome screen warns if not synchronized | `scripts/set-region.sh` → `/etc/systemd/timesyncd.conf.d/adguard.conf` |
-| AdGuard backup | daily at 03:30 when changed, last 7 versions, plus the system settings from `adguard-setup`; manage, restore and use a USB stick with `sudo adguard-backup`; offered automatically on reinstall | `scripts/adguard-backup.sh`, `rootfs/etc/systemd/system/adguard-backup.*` |
-| USB stick info | shown on the login screen (updates when plugging in/removing) and in `status` (free/used, number of backups) | `scripts/adguard-usb.sh`, `rootfs/etc/udev/rules.d/90-adguard-usb.rules` |
+| Time | automatically via NTP from the region's pool, e.g. `pool.ntp.org` (fallback: Debian pool); the welcome screen warns if not synchronized | `scripts/set-region.sh` → `/etc/systemd/timesyncd.conf.d/system-setup.conf` |
+| AdGuard backup | daily at 03:30 when changed, last 7 versions, plus the system settings from `system-setup`; manage, restore and use a USB stick with `sudo system-backup`; offered automatically on reinstall | `scripts/system-backup.sh`, `rootfs/etc/systemd/system/system-backup.*` |
+| USB stick info | shown on the login screen (updates when plugging in/removing) and in `status` (free/used, number of backups) | `scripts/system-usb.sh`, `rootfs/etc/udev/rules.d/90-system-usb.rules` |
 | Firewall (ufw) | open: 22/tcp (SSH), 53 (DNS), 80/tcp, 443, 3000/tcp (setup wizard) | `scripts/install.sh` |
 | fail2ban | SSH: 5 failed attempts in 10 min → 15 min ban, repeat offenders longer (up to 1 week) | `rootfs/etc/fail2ban/jail.local` |
 | zram swap | compressed swap in RAM (50 %), spares the eMMC | `rootfs/etc/default/zramswap` |
-| Power button | a short press shuts down cleanly | `rootfs/etc/systemd/logind.conf.d/adguard.conf` |
+| Power button | a short press shuts down cleanly | `rootfs/etc/systemd/logind.conf.d/system-setup.conf` |
 | Wyse fix (**Wyse 3040 only**) | DMA driver `dw_dmac` blacklisted: without the fix the Wyse 3040 hangs on shutdown/reboot and does not power off. Only applied when the device is detected. | `hardware/wyse3040/etc/modprobe.d/wyse-fix.conf` |
-| Basic setup | restore a backup (on reinstall), hostname, password, reboot schedule, optional Cockpit, DHCP/static IP; starts automatically on first login | `scripts/adguard-setup.sh` → `sudo adguard-setup`, `rootfs/etc/profile.d/adguard-setup.sh` |
+| Basic setup | restore a backup (on reinstall), hostname, own admin user, password, reboot schedule, optional Cockpit, DHCP/static IP; starts automatically on first login | `scripts/system-setup.sh` → `sudo system-setup`, `rootfs/etc/profile.d/system-setup.sh` |
 
 `rootfs/` contains only **own files or drop-ins** (`*.conf.d/`, `*-local`),
 never full copies of package files. This keeps Debian updates conflict-free and
@@ -131,20 +133,20 @@ makes it obvious what was changed.
  ├─ Debian installer reads installer/preseed.cfg
  │    → network (DHCP), user, partition the internal disk,
  │      minimal system
- │    → late_command: copy repo to /opt/adguard-setup, remember the region,
+ │    → late_command: copy repo to /opt/system-setup, remember the region,
  │                    enable the Wyse fix (Wyse 3040 only),
  │                    enable the first-boot service
  │    → device switches off
  │
  └─ First boot from the internal disk
-      adguard-firstboot.service → scripts/bootstrap.sh
+      system-firstboot.service → scripts/bootstrap.sh
         → set the region (scripts/set-region.sh: language, NTP)
         → install packages (ufw, fail2ban, unattended-upgrades, zram,
           microcode for Intel/AMD …)
         → download AdGuard Home and set it up as a service
         → scripts/install.sh: apply rootfs/, detect the device and apply
           hardware/<device>/ if needed, firewall, services
-        → /var/lib/adguard-setup/bootstrap.done (the service never runs again)
+        → /var/lib/system-setup/bootstrap.done (the service never runs again)
 ```
 
 If there is no internet yet (e.g. no IP yet or the cable is not plugged in),
@@ -161,20 +163,21 @@ screen then shows a notice.
 │   ├── build-iso.sh                     # builds the USB stick (ISO)
 │   ├── preseed.cfg                      # answers for the Debian installer
 │   ├── grub.cfg                         # boot menu of the stick (template)
-│   └── adguard-firstboot.service        # runs bootstrap.sh on first boot
+│   └── system-firstboot.service         # runs bootstrap.sh on first boot
 ├── lang/                                # texts per language: en.sh (reference), de.sh …
 ├── region/                              # per country: en_US.conf, de_DE.conf … (boot menu)
 ├── scripts/
 │   ├── bootstrap.sh                     # packages + AdGuard + install.sh
 │   ├── install.sh                       # applies rootfs/ (can also run on its own)
 │   ├── set-region.sh                    # region of the device (language, NTP)
+│   ├── migrate.sh                       # one-time conversions of older installations
 │   ├── i18n.sh                          # loads the texts (used by all scripts)
 │   ├── check-lang.sh                    # checks the language files
 │   ├── hardware.sh                      # device detection
-│   ├── adguard-setup.sh                 # hostname / password / reboot / Cockpit / IP
-│   ├── adguard-banner.sh                # generates the login banner (/etc/issue)
-│   ├── adguard-backup.sh                # backups of the AdGuard settings
-│   ├── adguard-usb.sh                   # USB stick info for login banner + "status"
+│   ├── system-setup.sh                  # hostname / user / reboot / Cockpit / IP, update
+│   ├── system-banner.sh                 # generates the login banner (/etc/issue)
+│   ├── system-backup.sh                 # backups of the AdGuard and system settings
+│   ├── system-usb.sh                    # USB stick info for login banner + "status"
 │   └── status.sh                        # "status" command: show the summary again
 ├── rootfs/                              # files 1:1 as on the system (all devices)
 │   └── etc/ ...                         #   e.g. rootfs/etc/fail2ban/jail.local
@@ -224,7 +227,8 @@ git push origin v1.1.1
 
 Before that, run `./scripts/check-lang.sh` and add a `## v…` section for the new
 version to `CHANGELOG.md` (English) and `CHANGELOG.de.md`. They are used for the
-release text and for the update display.
+release text and for the update display. If you remove a block from
+`scripts/migrate.sh`, enter the matching minimum version in `MIN_UPDATE_FROM`.
 
 After about 5 minutes the ISO is available under **Releases**. A test build
 without a release: *Actions → ISO bauen → Run workflow*.
@@ -250,13 +254,13 @@ Raspberry Pi):
    e.g. `en_GB.UTF-8` → `en_GB`. Another region:
    `sudo ./scripts/set-region.sh de_DE` and then `sudo ./scripts/install.sh`.
 
-## Basic setup: `adguard-setup`
+## Basic setup: `system-setup`
 
 Starts **automatically on the first login** and reminds you on every login
 until it has run through once. Can be run again at any time:
 
 ```bash
-sudo adguard-setup
+sudo system-setup
 ```
 
 Every step can be skipped:
@@ -265,14 +269,15 @@ Every step can be skipped:
 |------|--------------|
 | 0. Restore backup | **first run only**, if a USB stick with a backup (folder `AdGuard-Backup/`) is plugged in: choose **1)** AdGuard + system settings, **2)** AdGuard only, **3)** nothing. With 1) the following questions are **pre-filled** with the saved values; just confirm with Enter. See [new device from a backup](#setting-up-a-new-device-from-a-backup). |
 | 1. Hostname | sets the hostname and updates `/etc/hosts` (default: `adguard`) |
+| 1b. Administrator | optional (default: no): creates **your own admin user** with sudo rights instead of the publicly known `adguard` (SSH keys are copied). Then log out, log in as the new user and run `sudo system-setup` again: it offers to **delete `adguard`** – only when you are working as another admin and `adguard` is no longer logged in, so you cannot lock yourself out. |
 | 2. Password | changes the password of a Linux user |
 | 3. Reboot | **time** for reboots (default 04:00, also used for reboots after updates) and **regular reboot** (recommended): daily or weekly on a chosen day (default Sunday). The current time and time zone of the device are shown for reference. |
 | 4. Cockpit | optionally installs the [web console](#web-console-cockpit) |
 | 5. Network | **keep DHCP** or set a **static IP** with gateway and DNS. Supports `ifupdown` (Debian default), `systemd-networkd` and NetworkManager. Takes effect after a reboot. |
 
-`adguard-setup` stores the chosen settings in `/etc/adguard-setup.conf`
+`system-setup` stores the chosen settings in `/etc/system-setup.conf`
 (hostname, reboot schedule, Cockpit yes/no, DHCP or static IP). The file is
-backed up by [`adguard-backup`](#tips-for-daily-use). The Linux password is
+backed up by [`system-backup`](#tips-for-daily-use). The Linux password is
 deliberately **not** stored.
 
 Network notes:
@@ -286,7 +291,7 @@ Network notes:
 
 ### Web console (Cockpit)
 
-Optionally installed via `adguard-setup`. [Cockpit](https://cockpit-project.org)
+Optionally installed via `system-setup`. [Cockpit](https://cockpit-project.org)
 is a web interface for the Linux system at **`https://<IP>:9090`** (log in with
 the Linux user `adguard`):
 
@@ -304,14 +309,14 @@ New versions of this project (scripts, banner, settings) can be installed
 without reinstalling:
 
 ```bash
-sudo adguard-setup --update
+sudo system-setup --update
 ```
 
 This checks the latest [release](../../releases), shows the changes from
 [CHANGELOG.md](CHANGELOG.md) (on German devices from
 [CHANGELOG.de.md](CHANGELOG.de.md)) and asks for confirmation. To confirm, you
 have to type `yes`. A backup is created automatically before installing.
-`sudo adguard-setup --version` shows the installed version.
+`sudo system-setup --version` shows the installed version.
 
 - The update runs **only on command**, never automatically. If everything
   works, it is not necessary. Read the changes first and decide whether you
@@ -324,8 +329,17 @@ have to type `yes`. A backup is created automatically before installing.
 - Changes to the installer (e.g. partitioning) only take effect on a
   reinstall; the change log marks them.
 - If an update brings **new questions to the setup**, the welcome screen shows
-  "The setup has new settings". Then run `sudo adguard-setup`; previous answers
+  "The setup has new settings". Then run `sudo system-setup`; previous answers
   can be kept with Enter.
+- **A specific version** instead of the latest: `sudo system-setup --update v1.4.0`.
+  This is needed when a release requires a minimum version (file
+  `MIN_UPDATE_FROM` in the repo): the update then refuses older devices
+  *before* changing anything and shows the intermediate step.
+
+> **Since v1.2 the commands are called `system-setup` and `system-backup`**
+> (before: `adguard-setup`, `adguard-backup`). The update from v1.1 converts
+> everything automatically, including the reboot schedule and backups; the old
+> commands no longer exist afterwards.
 
 ## Changing the configuration
 
@@ -361,7 +375,7 @@ sudo find /etc -type f -newermt '2026-03-01 14:30' ! -newermt '2026-03-01 18:00'
 
 ## Setting up a new device from a backup
 
-Device broken or reinstalled? With a USB stick that `adguard-backup` saved to
+Device broken or reinstalled? With a USB stick that `system-backup` saved to
 (folder `AdGuard-Backup/`), everything is back as before within minutes:
 
 1. Reinstall as in the [quick start](#quick-start) (steps 1–5).
@@ -384,14 +398,14 @@ Device broken or reinstalled? With a USB stick that `adguard-backup` saved to
 > IP. Switch it off first or enter a different address when asked.
 
 Later, a backup can be restored from the stick at any time with
-`sudo adguard-backup` → **4** (AdGuard only).
+`sudo system-backup` → **4** (AdGuard only).
 
 ## Maintenance & troubleshooting
 
 | Task | Command |
 |------|---------|
 | **Show summary** (as after login) | `status` |
-| Follow the initial setup | `journalctl -fu adguard-firstboot` |
+| Follow the initial setup | `journalctl -fu system-firstboot` |
 | AdGuard status | `systemctl status AdGuardHome` |
 | Restart AdGuard | `sudo systemctl restart AdGuardHome` |
 | AdGuard update | web interface or `sudo /opt/AdGuardHome/AdGuardHome --update` |
@@ -403,11 +417,11 @@ Later, a backup can be restored from the stick at any time with
 | Recent auto-updates | `less /var/log/unattended-upgrades/unattended-upgrades.log` |
 | Port 53 in use? | `sudo ss -tulpn \| grep ':53'` |
 | Check time / time sync | `timedatectl` (expected: "System clock synchronized: yes") |
-| Show / change reboot schedule | `systemctl list-timers adguard-reboot.timer` · `sudo adguard-setup` |
+| Show / change reboot schedule | `systemctl list-timers system-reboot.timer` · `sudo system-setup` |
 | Watchdog active? | `sudo wdctl` |
 
 About the nightly reboot: during it (about 1 minute) DNS is unavailable on the
-network. Time and frequency can be changed with `sudo adguard-setup`.
+network. Time and frequency can be changed with `sudo system-setup`.
 
 ## Tips for daily use
 
@@ -427,11 +441,11 @@ network. Time and frequency can be changed with `sudo adguard-setup`.
 - **Backups of the AdGuard settings** run automatically: all settings
   (filters, own rules, clients, admin login) are in one file
   (`/opt/AdGuardHome/AdGuardHome.yaml`). It is **backed up daily at 03:30 if it
-  has changed**; the **last 7 versions** are kept in `/var/backups/adguard/`.
-  In addition, the current **system settings** from `adguard-setup` are saved
-  (`adguard-setup.conf`). Manage them with:
+  has changed**; the **last 7 versions** are kept in `/var/backups/system-backup/`.
+  In addition, the current **system settings** from `system-setup` are saved
+  (`system-setup.conf`). Manage them with:
   ```bash
-  sudo adguard-backup
+  sudo system-backup
   ```
   This shows all versions and offers:
   1. **back up now**
@@ -450,7 +464,7 @@ network. Time and frequency can be changed with `sudo adguard-setup`.
   Which stick is plugged in is shown on the **login screen** (updates when
   plugging in/removing) and in `status`, which also shows free/used space and
   the number of backups on it (the stick is mounted read-only for a moment).
-  Log of all plug/unplug events: `sudo journalctl -t adguard-usb`
+  Log of all plug/unplug events: `sudo journalctl -t system-usb`
 
   **Leave the stick plugged in permanently:** if a plugged-in stick has the
   folder `AdGuard-Backup/` (created on the first copy with menu item **3**),
@@ -459,7 +473,7 @@ network. Time and frequency can be changed with `sudo adguard-setup`.
 
   **Also keep a copy outside the device now and then.** The automatic backups
   are on the same eMMC and do not help if it breaks. Easiest: plug in a USB
-  stick, `sudo adguard-backup` → **3** → **Enter** for all. Alternatively use
+  stick, `sudo system-backup` → **3** → **Enter** for all. Alternatively use
   "provide for download" and [WinSCP](https://winscp.net) (graphical, same
   login as SSH) or PowerShell:
   ```powershell
@@ -542,7 +556,7 @@ English (US, time zone UTC) is preselected. The choice determines:
 |------|--------|
 | texts of all menus, messages, login banner, `status` | `lang/<language>.sh` – if a translation is missing, the English text is shown |
 | keyboard, time zone, system locale | set by the Debian installer |
-| date and number format, time servers (NTP) | `region/<country>.conf`, on the device `/etc/adguard-region.conf` |
+| date and number format, time servers (NTP) | `region/<country>.conf`, on the device `/etc/system-region.conf` |
 
 AdGuard Home and Cockpit follow the language of your browser. **Backups**
 contain no texts, only values; they can be moved between devices with
@@ -554,13 +568,13 @@ setup questions):
 ```bash
 sudo dpkg-reconfigure keyboard-configuration   # keyboard
 sudo timedatectl set-timezone Europe/London    # time zone (list: timedatectl list-timezones)
-sudo /opt/adguard-setup/scripts/set-region.sh en_GB && sudo /opt/adguard-setup/scripts/install.sh
+sudo /opt/system-setup/scripts/set-region.sh en_GB && sudo /opt/system-setup/scripts/install.sh
                                                # texts, date format, time servers
 ```
 
 > The reboot (default 04:00) and the backup (03:30) run in the device's time
 > zone. With UTC this may be during the day where you live – then set your time
-> zone, or choose a different time in `sudo adguard-setup`.
+> zone, or choose a different time in `sudo system-setup`.
 
 **Adding a language or a country** (no code changes needed, pull requests
 welcome):

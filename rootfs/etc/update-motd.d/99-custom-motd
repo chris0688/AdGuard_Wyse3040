@@ -1,10 +1,10 @@
 #!/bin/bash
 # Begrüßung nach dem Login: AdGuard-Logo + Systemstatus
-# Texte: /usr/local/share/adguard/lang/<sprache>.sh (siehe scripts/i18n.sh)
+# Texte: /usr/local/share/system-setup/lang/<sprache>.sh (siehe scripts/i18n.sh)
 
 # Zeichen statt Bytes zählen (Ausrichtung bei Umlauten), feste Zahlenformate
 export LC_ALL=C.UTF-8
-. /usr/local/share/adguard/i18n.sh
+. /usr/local/share/system-setup/i18n.sh
 
 # Farbdefinitionen (ANSI - AdGuard Theme)
 LIGHT_GREEN='\033[1;32m'
@@ -64,7 +64,7 @@ uptime_text() {
 HOSTNAME=$(hostname)
 MODEL=$(cat /sys/class/dmi/id/sys_vendor /sys/class/dmi/id/product_name 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')
 # Projektversion, mit der das Gerät installiert wurde (von build-iso.sh)
-SETUP_VERSION=$(head -n1 /opt/adguard-setup/VERSION 2>/dev/null)
+SETUP_VERSION=$(head -n1 /opt/system-setup/VERSION 2>/dev/null)
 OS=$(. /etc/os-release && echo "$PRETTY_NAME")
 KERNEL=$(uname -r)
 UPTIME=$(uptime_text)
@@ -93,7 +93,7 @@ if compgen -G "/sys/class/thermal/thermal_zone*/temp" >/dev/null; then
     TEMP=$(( TEMP / 1000 ))
 fi
 
-# Regelmäßiger Neustart (eingerichtet mit adguard-setup)
+# Regelmäßiger Neustart (eingerichtet mit system-setup)
 REBOOT_PLAN="$(adguard_reboot_text)"
 if [[ -n $REBOOT_PLAN ]]; then
     REBOOT_PLAN="${CYAN}${REBOOT_PLAN}${NC}"
@@ -113,10 +113,10 @@ else
     AUTO_UPDATE="${LIGHT_GREEN}${T_MOTD_UU_ACTIVE}${NC} ${GRAY}– ${T_MOTD_UU_NOT_YET}${NC}"
 fi
 
-# Sicherungen der AdGuard-Einstellungen (adguard-backup)
-BACKUP_COUNT=$(ls -1 /var/backups/adguard/AdGuardHome-*.yaml 2>/dev/null | wc -l)
+# Sicherungen der AdGuard-Einstellungen (system-backup)
+BACKUP_COUNT=$(ls -1 /var/backups/system-backup/AdGuardHome-*.yaml 2>/dev/null | wc -l)
 if (( BACKUP_COUNT > 0 )); then
-    BACKUP_LAST=$(adguard_date -r "$(ls -1t /var/backups/adguard/AdGuardHome-*.yaml | head -n1)")
+    BACKUP_LAST=$(adguard_date -r "$(ls -1t /var/backups/system-backup/AdGuardHome-*.yaml | head -n1)")
     if (( BACKUP_COUNT == 1 )); then
         BACKUP_N="$T_MOTD_BACKUP_ONE"
     else
@@ -129,9 +129,9 @@ else
     BACKUP_INFO="${GRAY}–${NC}"
 fi
 
-# Eingesteckte USB-Sticks (adguard-usb), eine Zeile je Stick
+# Eingesteckte USB-Sticks (system-usb), eine Zeile je Stick
 USB_INFO=""
-[[ -x /usr/local/sbin/adguard-usb ]] && USB_INFO=$(timeout 25 /usr/local/sbin/adguard-usb info 2>/dev/null)
+[[ -x /usr/local/sbin/system-usb ]] && USB_INFO=$(timeout 25 /usr/local/sbin/system-usb info 2>/dev/null)
 
 # Web-Konsole (Cockpit), falls installiert
 WEBCONSOLE=""
@@ -215,17 +215,17 @@ else
 fi
 echo -e "$LINE"
 
-if [[ ! -f /var/lib/adguard-setup/setup.done ]]; then
-    echo -e "  ${YELLOW}${T_MOTD_TIP}${NC} ${T_MOTD_TIP_TEXT}  ${WHITE}sudo adguard-setup${NC}"
+if [[ ! -f /var/lib/system-setup/setup.done ]]; then
+    echo -e "  ${YELLOW}${T_MOTD_TIP}${NC} ${T_MOTD_TIP_TEXT}  ${WHITE}sudo system-setup${NC}"
     echo -e "$LINE"
 fi
 
 echo -e "  ${YELLOW}${T_MOTD_COMMANDS}${NC}"
 printf "    ${WHITE}%-29s${NC}${GRAY}%s${NC}\n" \
     "status"                      "$T_MOTD_CMD_STATUS" \
-    "sudo adguard-setup"          "$T_MOTD_CMD_SETUP" \
-    "sudo adguard-backup"         "$T_MOTD_CMD_BACKUP" \
-    "sudo adguard-setup --update" "$T_MOTD_CMD_UPDATE"
+    "sudo system-setup"          "$T_MOTD_CMD_SETUP" \
+    "sudo system-backup"         "$T_MOTD_CMD_BACKUP" \
+    "sudo system-setup --update" "$T_MOTD_CMD_UPDATE"
 echo -e "$LINE"
 
 echo -e "  ${YELLOW}${T_MOTD_NOTICE}${NC} ${WHITE}${T_MOTD_NOTICE_1}${NC}"
@@ -234,9 +234,9 @@ echo -e "$LINE"
 
 # Nach einem Projekt-Update: das Setup hat neue Fragen, die hier noch nie
 # beantwortet wurden. Ganz unten, damit es direkt über dem Prompt steht.
-if [[ -f /var/lib/adguard-setup/setup.done ]] \
-   && ! /usr/local/sbin/adguard-setup --check >/dev/null 2>&1; then
+if [[ -f /var/lib/system-setup/setup.done ]] \
+   && ! /usr/local/sbin/system-setup --check >/dev/null 2>&1; then
     echo -e "  ${RED}${T_MOTD_NEW}${NC} ${YELLOW}${T_MOTD_NEW_TEXT}${NC}"
-    echo -e "           ${WHITE}sudo adguard-setup${NC}"
+    echo -e "           ${WHITE}sudo system-setup${NC}"
     echo -e "$LINE"
 fi

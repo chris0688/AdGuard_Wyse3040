@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# adguard-banner – erzeugt den Login-Banner (/etc/issue) passend zum Zustand:
+# system-banner – erzeugt den Login-Banner (/etc/issue) passend zum Zustand:
 #   * Web-Konsole (Cockpit), falls installiert
 #   * Link zum AdGuard-Einrichtungsassistenten, solange AdGuard nicht eingerichtet ist
 #   * Warnung, solange ein Benutzer noch das Standardpasswort hat
 #
-# Auf dem Gerät: /usr/local/sbin/adguard-banner
+# Auf dem Gerät: /usr/local/sbin/system-banner
 # Läuft beim Start und automatisch bei Passwortänderung bzw. nach der
-# AdGuard-Einrichtung (adguard-banner.path).
+# AdGuard-Einrichtung (system-banner.path).
 set -euo pipefail
 # Zeichen statt Bytes zählen (Ausrichtung bei Umlauten)
 export LC_ALL=C.UTF-8
-. /usr/local/share/adguard/i18n.sh
+. /usr/local/share/system-setup/i18n.sh
 
 AGH_CONF="/opt/AdGuardHome/AdGuardHome.yaml"
 
@@ -61,10 +61,10 @@ fi
         issue_row "$T_BANNER_WEBCONSOLE" 'https://\4:9090'
     fi
     # Eingesteckte USB-Sticks (wird beim Einstecken/Abziehen neu erzeugt)
-    if [[ -x /usr/local/sbin/adguard-usb ]]; then
+    if [[ -x /usr/local/sbin/system-usb ]]; then
         while IFS='|' read -r label rest; do
             [[ -n $label ]] && issue_row "$T_BANNER_USB" "$label" " $rest"
-        done < <(/usr/local/sbin/adguard-usb issue || true)
+        done < <(/usr/local/sbin/system-usb issue || true)
     fi
     echo "$LINE"
     if [[ -n $pending_users ]]; then
@@ -82,15 +82,13 @@ fi
 # Die sind hier schon enthalten, daher ausblenden (bleibt auch nach Updates so).
 # Nach dem Umleiten (dpkg-divert) existiert die Datei nicht mehr an der alten Stelle,
 # auch Paket-Updates legen sie dann nicht wieder an.
-mkdir -p /var/lib/adguard-setup
+mkdir -p /var/lib/system-setup
 for f in /etc/issue.d/cockpit.issue /etc/motd.d/cockpit; do
     if [[ -e $f || -L $f ]]; then
-        dpkg-divert --local --rename --divert "/var/lib/adguard-setup/$(basename "$f").disabled" --add "$f" >/dev/null
+        dpkg-divert --local --rename --divert "/var/lib/system-setup/$(basename "$f").disabled" --add "$f" >/dev/null
     fi
 done
 
-# Frühere Version legte die USB-Zeile separat ab (unterhalb des Banners)
-rm -f /etc/issue.d/60-adguard-usb.issue
 
 # Angezeigten Banner an der Konsole sofort aktualisieren
 agetty --reload 2>/dev/null || true

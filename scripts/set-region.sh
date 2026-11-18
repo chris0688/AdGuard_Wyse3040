@@ -4,13 +4,13 @@
 #
 #   sudo ./scripts/set-region.sh [REGION]     z.B. de_DE, en_US (siehe region/)
 #
-# Ohne Angabe gilt die bisherige Region (/etc/adguard-region.conf, beim
+# Ohne Angabe gilt die bisherige Region (/etc/system-region.conf, beim
 # Installieren aus dem Bootmenü gesetzt), sonst die zur System-Locale passende
 # (Geräte vor v1.1 waren deutsch: LANG=de_DE.UTF-8 -> de_DE), sonst en_US.
 #
 # Schreibt:
-#   /etc/adguard-region.conf                      gelesen von scripts/i18n.sh
-#   /etc/systemd/timesyncd.conf.d/adguard.conf    NTP-Server der Region
+#   /etc/system-region.conf                      gelesen von scripts/i18n.sh
+#   /etc/systemd/timesyncd.conf.d/system-setup.conf    NTP-Server der Region
 #
 # Locale, Tastatur und Zeitzone des Systems setzt nur der Installer. Sie werden
 # hier bewusst NICHT geändert (sonst würde ein Update eigene Einstellungen
@@ -18,8 +18,8 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-REGION_CONF="/etc/adguard-region.conf"
-NTP_CONF="/etc/systemd/timesyncd.conf.d/adguard.conf"
+REGION_CONF="/etc/system-region.conf"
+NTP_CONF="/etc/systemd/timesyncd.conf.d/system-setup.conf"
 
 if [[ $EUID -ne 0 ]]; then
     echo "Please run as root (sudo $0)." >&2
@@ -46,7 +46,7 @@ fi
 src="$REPO_DIR/region/$region.conf"
 {
     echo "# AdGuard-Wyse3040 – Region (erzeugt von set-region.sh aus region/$region.conf)"
-    echo "# Ändern: sudo /opt/adguard-setup/scripts/set-region.sh <REGION>"
+    echo "# Ändern: sudo /opt/system-setup/scripts/set-region.sh <REGION>"
     echo "REGION=$region"
     grep -E '^(TEXTS|LOCALE|KEYMAP|TIMEZONE|NTP_POOL|DATE_FORMAT|DECIMAL)=' "$src"
 } > "$REGION_CONF.tmp"

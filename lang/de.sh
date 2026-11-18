@@ -74,7 +74,7 @@ T_MOTD_TIP="Tipp:"
 T_MOTD_TIP_TEXT="Hostname und feste IP einrichten mit:"
 T_MOTD_COMMANDS="Befehle:"
 T_MOTD_CMD_STATUS="diese Übersicht erneut anzeigen"
-T_MOTD_CMD_SETUP="Hostname, Passwort, Neustart, Cockpit, IP"
+T_MOTD_CMD_SETUP="Hostname, Benutzer, Neustart, Cockpit, IP"
 T_MOTD_CMD_BACKUP="Backups verwalten, USB-Stick"
 T_MOTD_CMD_UPDATE="Projekt aktualisieren (nicht AdGuard)"
 T_MOTD_NOTICE="HINWEIS:"
@@ -98,7 +98,7 @@ T_BANNER_PW_USER="Benutzer:"
 T_BANNER_PW_PASSWORD="Passwort:"
 T_BANNER_PW_RISK="Bis dahin ist das Gerät per SSH mit diesem öffentlich bekannten Passwort erreichbar."
 
-# ------------------------------------------------------------ USB-Sticks (adguard-usb)
+# ------------------------------------------------------------ USB-Sticks (system-usb)
 T_USB_NO_NAME="ohne Namen"
 T_USB_UNREADABLE="nicht lesbar"
 T_USB_FREE_OF="%s frei von %s"
@@ -108,7 +108,7 @@ T_USB_BACKUPS_NONE="keine Backups"
 T_USB_PLUGGED="USB-Stick eingesteckt: %s"
 T_USB_REMOVED="USB-Stick getrennt: %s"
 
-# ------------------------------------------------------------ Backups (adguard-backup)
+# ------------------------------------------------------------ Backups (system-backup)
 T_BACKUP_MENU_TITLE="AdGuard-Einstellungen – Sicherungen (%s, es werden die letzten %d behalten)"
 T_BACKUP_MENU_1="jetzt sichern"
 T_BACKUP_MENU_2="Version wiederherstellen"
@@ -120,11 +120,11 @@ T_BACKUP_AGH_NOT_SET_UP="AdGuard ist noch nicht eingerichtet – nichts zu siche
 T_BACKUP_UNCHANGED="Keine Änderungen seit der letzten Sicherung (%s)."
 T_BACKUP_ANYWAY="Trotzdem eine neue Sicherung anlegen?"
 T_BACKUP_SAVED="Gesichert: %s"
-T_BACKUP_SETTINGS_SAVED="Systemeinstellungen (adguard-setup) gesichert."
+T_BACKUP_SETTINGS_SAVED="Systemeinstellungen (system-setup) gesichert."
 T_BACKUP_MODIFIED="geändert %s"
 T_BACKUP_NONE_YET="Noch keine Sicherungen vorhanden."
 T_BACKUP_LIST_TITLE="Gesicherte Versionen (neueste zuerst):"
-T_BACKUP_SYSTEM_SETTINGS="Systemeinstellungen (adguard-setup)"
+T_BACKUP_SYSTEM_SETTINGS="Systemeinstellungen (system-setup)"
 T_BACKUP_ENTER_ALL="Enter = alle"
 T_BACKUP_NEWEST="neueste"
 T_BACKUP_Q_RESTORE="Welche Version wiederherstellen?"
@@ -159,12 +159,13 @@ T_BACKUP_AUTO_SETTINGS_COPIED="Systemeinstellungen auf USB-Stick kopiert: %s"
 T_BACKUP_FOUND="Stand %s, USB-Stick %s"
 T_BACKUP_FOUND_WITH_SETTINGS="Stand %s + Systemeinstellungen, USB-Stick %s"
 
-# ------------------------------------------------------------ Grundeinrichtung (adguard-setup)
+# ------------------------------------------------------------ Grundeinrichtung (system-setup)
 T_SETUP_TITLE="AdGuard Home – Grundeinrichtung"
 T_SETUP_LAST_RUN="Zuletzt ausgeführt: %s"
-T_SETUP_USAGE="Aufruf: sudo adguard-setup             Grundeinrichtung
-        sudo adguard-setup --update    dieses Projekt aktualisieren (nicht AdGuard)
-        sudo adguard-setup --version   installierte Projektversion anzeigen"
+T_SETUP_USAGE="Aufruf: sudo system-setup             Grundeinrichtung
+        sudo system-setup --update    dieses Projekt aktualisieren (nicht AdGuard)
+        sudo system-setup --update VERSION   auf eine bestimmte Version, z.B. v1.4.0
+        sudo system-setup --version   installierte Projektversion anzeigen"
 T_SETUP_FROM_BACKUP="Aus dem Backup:     %s"
 T_SETUP_INVALID_IPV4="Ungültige IPv4-Adresse: %s"
 T_SETUP_DONE="Fertig."
@@ -191,6 +192,25 @@ T_SETUP_HOSTNAME_Q_CHANGE="Hostname ändern?"
 T_SETUP_HOSTNAME_Q_NEW="Neuer Hostname"
 T_SETUP_HOSTNAME_INVALID="Ungültiger Hostname – übersprungen."
 T_SETUP_HOSTNAME_SET="Hostname gesetzt: %s"
+# Schritt 1b: eigener Administrator
+T_SETUP_USER_TITLE="Administrator (Linux-Benutzer)"
+T_SETUP_USER_CURRENT="Angemeldet als: %s"
+T_SETUP_USER_INFO_1="Der Benutzer „adguard“ steht öffentlich in der Anleitung. Ein eigener Name"
+T_SETUP_USER_INFO_2="ist sicherer. Der alte Benutzer kann danach beim nächsten Setup gelöscht werden."
+T_SETUP_USER_Q_CREATE="Eigenen Administrator anlegen?"
+T_SETUP_USER_Q_NAME="Benutzername (Kleinbuchstaben, Ziffern, - und _)"
+T_SETUP_USER_NAME_INVALID="Ungültiger Name: nur Kleinbuchstaben, Ziffern, - und _, beginnend mit einem Buchstaben."
+T_SETUP_USER_EXISTS="Den Benutzer „%s“ gibt es schon."
+T_SETUP_USER_KEYS_COPIED="SSH-Schlüssel übernommen."
+T_SETUP_USER_Q_PASSWORD="Passwort für %s festlegen:"
+T_SETUP_USER_PASSWORD_RETRY="Passwort nicht gesetzt – bitte erneut versuchen."
+T_SETUP_USER_CREATED="Administrator angelegt: %s (mit sudo-Rechten)"
+T_SETUP_USER_NEXT="Nach dem Setup abmelden und als %s neu anmelden. Dann erneut sudo system-setup ausführen, um %s zu löschen."
+T_SETUP_USER_OLD_EXISTS="Den Benutzer der Installation (%s) gibt es noch."
+T_SETUP_USER_OLD_BUSY="%s ist noch angemeldet oder hat laufende Programme – erst dort abmelden, dann erneut versuchen."
+T_SETUP_USER_OLD_FILES="Eigene Dateien in %s (werden mit gelöscht):"
+T_SETUP_USER_Q_DELETE="Benutzer %s mit seinem Home-Ordner löschen?"
+T_SETUP_USER_DELETED="Benutzer %s gelöscht."
 # Schritt 2: Passwort
 T_SETUP_PASSWORD_TITLE="Linux-Benutzerpasswort"
 T_SETUP_PASSWORD_Q_CHANGE="Passwort eines Linux-Benutzers ändern?"
@@ -253,7 +273,7 @@ T_SETUP_NET_UNKNOWN_BACKEND="Unbekannte Netzwerkverwaltung – bitte manuell kon
 T_SETUP_NET_DONE="Netzwerk konfiguriert. Wird nach dem Neustart aktiv."
 T_SETUP_NET_NEW_URL="AdGuard ist dann erreichbar unter: %s"
 
-# ------------------------------------------------------------ Projekt-Update (adguard-setup --update)
+# ------------------------------------------------------------ Projekt-Update (system-setup --update)
 T_UPDATE_TITLE="Projekt-Update (AdGuard-Wyse3040)"
 T_UPDATE_SEARCHING="Suche nach der neuesten Version auf %s ..."
 T_UPDATE_NO_LATEST="Konnte die neueste Version nicht ermitteln (Internet? GitHub erreichbar?)."
@@ -284,13 +304,18 @@ T_UPDATE_INSTALLING="Spiele %s ein ..."
 T_UPDATE_VERSION_NOTE="Update vom %s"
 T_UPDATE_INSTALL_FAILED="Beim Einspielen ist ein Fehler aufgetreten – Details: %s"
 T_UPDATE_DONE="Fertig. Installiert: %s"
+T_UPDATE_BAD_VERSION="Ungültige Version: %s (erwartet z.B. v1.4.0)"
+T_UPDATE_NO_DOWNGRADE="%s ist älter als die installierte Version %s. Zurück geht nur über eine Neuinstallation (danach Backup einspielen)."
+T_UPDATE_TOO_OLD="%s setzt mindestens %s voraus (installiert: %s). Es wurde nichts geändert."
+T_UPDATE_STEP_1="Erst darauf aktualisieren:   %s"
+T_UPDATE_STEP_2="Danach erneut:               %s"
 
 # ------------------------------------------------------------ Erster Start (bootstrap.sh) – nur ASCII!
 T_BOOT_WAIT_INTERNET="Warte auf Internet - Netzwerkkabel pruefen (neuer Versuch alle 10 s)"
 T_BOOT_PACKAGES="Einrichtung laeuft (Pakete werden installiert) - bitte warten ..."
 T_BOOT_ADGUARD="Einrichtung laeuft (AdGuard Home wird installiert) - bitte warten ..."
 T_BOOT_CONFIG="Einrichtung laeuft (Konfiguration) - bitte warten ..."
-T_BOOT_FAILED="Einrichtung FEHLGESCHLAGEN - Details: journalctl -u adguard-firstboot"
+T_BOOT_FAILED="Einrichtung FEHLGESCHLAGEN - Details: journalctl -u system-firstboot"
 T_BOOT_DONE="Fertig. AdGuard Home einrichten unter %s"
 
 # ------------------------------------------------------------ Nach dem Login (profile.d)

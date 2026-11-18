@@ -57,7 +57,7 @@ jobs:
             echo
             section CHANGELOG.md
             echo
-            echo "Update existing devices: \`sudo adguard-setup --update\`"
+            echo "Update existing devices: \`sudo system-setup --update\`"
             echo
             echo "## New installation"
             echo
@@ -73,7 +73,7 @@ jobs:
             echo
             section CHANGELOG.de.md
             echo
-            echo "Bestehende Geräte aktualisieren: \`sudo adguard-setup --update\`"
+            echo "Bestehende Geräte aktualisieren: \`sudo system-setup --update\`"
             echo
             echo "Installations-ISO für AdGuard Home auf dem Dell Wyse 3040. Sprache und Land"
             echo "werden im Bootmenü gewählt. Anleitung: [README.de.md](https://github.com/$GITHUB_REPOSITORY/blob/main/README.de.md#schnellstart)."

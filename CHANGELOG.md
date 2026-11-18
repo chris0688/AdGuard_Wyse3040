@@ -1,9 +1,27 @@
 # Changes
 
-Newest version first. `sudo adguard-setup --update` also shows this list before
+Newest version first. `sudo system-setup --update` also shows this list before
 an update. Changes that only take effect on a **reinstall** (e.g. installer,
 partitioning) are marked as such.
 Deutsche Fassung: [CHANGELOG.de.md](CHANGELOG.de.md)
+
+## v1.2.0
+
+- **New command names:** `adguard-setup` is now **`system-setup`**,
+  `adguard-backup` is now **`system-backup`** (the old names sounded like
+  AdGuard Home itself). The old commands no longer exist after the update.
+- The update converts everything automatically: settings, region, backups,
+  reboot schedule, services and paths (`/etc/system-setup.conf`,
+  `/var/backups/system-backup` …). The folder `AdGuard-Backup/` on the USB
+  stick stays; old sticks are still recognized.
+- New in the setup: **your own administrator** instead of the publicly known
+  user `adguard` (optional, default no). The next time you run the setup as
+  the new user, `adguard` can be deleted.
+- New: `sudo system-setup --update VERSION` updates to a specific version.
+  Releases can require a minimum version (`MIN_UPDATE_FROM`); devices that are
+  too old are then refused before anything is changed.
+- After the update, the welcome screen asks you to run `sudo system-setup`
+  (new question about the administrator).
 
 ## v1.1.0
 

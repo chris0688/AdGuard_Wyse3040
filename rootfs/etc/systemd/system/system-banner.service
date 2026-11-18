@@ -4,7 +4,7 @@ Before=getty.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/sbin/adguard-banner
+ExecStart=/usr/local/sbin/system-banner
 
 [Install]
 WantedBy=multi-user.target

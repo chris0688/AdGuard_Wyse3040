@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
-# adguard-setup.sh – Grundeinrichtung des AdGuard-Servers (Hostname, Passwort, Neustart, IP)
+# system-setup.sh – Grundeinrichtung des AdGuard-Servers (Hostname, Passwort, Neustart, IP)
 #
-# Auf dem Gerät installiert als:  /usr/local/sbin/adguard-setup
-# Aufruf:                         sudo adguard-setup
-#                                 sudo adguard-setup --update   (Projekt-Update von GitHub)
+# Auf dem Gerät installiert als:  /usr/local/sbin/system-setup
+# Aufruf:                         sudo system-setup
+#                                 sudo system-setup --update   (Projekt-Update von GitHub)
 #
 # Schritte (jeder einzeln überspringbar):
 #   0. nur beim ersten Lauf: Backup von USB-Stick übernehmen (AdGuard und/oder
 #      diese Einstellungen als Vorschlagswerte)
 #   1. Hostname setzen
+#      eigener Administrator statt "adguard" (optional, Vorauswahl nein)
 #   2. Linux-Passwort ändern
 #   3. Automatischer Neustart: täglich/wöchentlich, Uhrzeit (auch für Updates)
 #   4. Web-Verwaltung Cockpit installieren (optional)
 #   5. Netzwerk: DHCP oder feste IP
 #
-# Die gewählten Einstellungen landen in /etc/adguard-setup.conf und werden von
-# adguard-backup mitgesichert. Dort stehen nur Codes (z.B. REBOOT_DAY=Sun), nie
+# Die gewählten Einstellungen landen in /etc/system-setup.conf und werden von
+# system-backup mitgesichert. Dort stehen nur Codes (z.B. REBOOT_DAY=Sun), nie
 # übersetzte Texte – ein Backup passt so auch auf ein Gerät mit anderer Sprache.
 #
 # Die AdGuard-Einrichtung (Admin-Benutzer, Upstreams, Filter) erfolgt über
@@ -23,23 +24,23 @@
 #
 # Texte: lang/<sprache>.sh, Abschnitte T_SETUP_* und T_UPDATE_* (siehe scripts/i18n.sh)
 set -euo pipefail
-. /usr/local/share/adguard/i18n.sh
+. /usr/local/share/system-setup/i18n.sh
 
-STATE_DIR="/var/lib/adguard-setup"
+STATE_DIR="/var/lib/system-setup"
 DONE_FILE="$STATE_DIR/setup.done"
-SETUP_CONF="/etc/adguard-setup.conf"
-# Formatversion von /etc/adguard-setup.conf. Erhöhen, wenn sich Bedeutung oder
+SETUP_CONF="/etc/system-setup.conf"
+# Formatversion von /etc/system-setup.conf. Erhöhen, wenn sich Bedeutung oder
 # Format eines Eintrags ändert (dann beim Einlesen umrechnen). Neue Einträge
 # brauchen keine neue Version: Fehlende Werte werden einfach normal abgefragt.
 CONF_VERSION=1
 # Alle Einträge, die das Setup speichert. Neue Frage im Setup = neuen Eintrag hier
 # und in save_settings ergänzen; Geräte ohne diesen Eintrag bekommen dann in der
-# Begrüßung den Hinweis, adguard-setup erneut auszuführen.
-SETTINGS_KEYS=(HOSTNAME REBOOT_TIME REBOOT_MODE REBOOT_DAY COCKPIT NET_MODE NET_ADDR NET_GW NET_DNS1 NET_DNS2)
-ADGUARD_BACKUP="/usr/local/sbin/adguard-backup"
+# Begrüßung den Hinweis, system-setup erneut auszuführen.
+SETTINGS_KEYS=(HOSTNAME ADMIN_USER REBOOT_TIME REBOOT_MODE REBOOT_DAY COCKPIT NET_MODE NET_ADDR NET_GW NET_DNS1 NET_DNS2)
+SYSTEM_BACKUP="/usr/local/sbin/system-backup"
 
-# Projekt-Update (sudo adguard-setup --update)
-SETUP_DIR="/opt/adguard-setup"
+# Projekt-Update (sudo system-setup --update)
+SETUP_DIR="/opt/system-setup"
 # GitHub-Repo, aus dem Updates kommen (beim ISO-Bau in $SETUP_DIR/REPO hinterlegt)
 DEFAULT_REPO="chris0688/AdGuard_Wyse3040"
 
@@ -124,7 +125,7 @@ load_presets() {
 }
 
 # Neue Fragen im Setup erkennen (z.B. nach einem Projekt-Update): Jeder Schritt
-# speichert seine Antwort als Eintrag in /etc/adguard-setup.conf. Fehlt dort ein
+# speichert seine Antwort als Eintrag in /etc/system-setup.conf. Fehlt dort ein
 # Eintrag aus SETTINGS_KEYS, wurde diese Frage auf dem Gerät noch nie beantwortet.
 # Ausgabe: fehlende Einträge; Rückgabe 1, wenn welche fehlen.
 check_settings() {
@@ -163,7 +164,7 @@ detect_network_state() {
 # Eingerichteter Neustart-Plan -> "none", "daily" oder "weekly <Tag>" (z.B. "weekly Sun")
 current_reboot_plan() {
     local cal
-    if systemctl is-enabled --quiet adguard-reboot.timer 2>/dev/null && [[ -f $REBOOT_TIMER ]]; then
+    if systemctl is-enabled --quiet system-reboot.timer 2>/dev/null && [[ -f $REBOOT_TIMER ]]; then
         cal="$(sed -n 's/^OnCalendar=//p' "$REBOOT_TIMER")"
         if [[ $cal == '*-*-*'* ]]; then
             echo daily
@@ -175,7 +176,7 @@ current_reboot_plan() {
     fi
 }
 
-# Schreibt die aktuellen Einstellungen nach /etc/adguard-setup.conf
+# Schreibt die aktuellen Einstellungen nach /etc/system-setup.conf
 save_settings() {
     local reboot_mode reboot_day="" cockpit=no
     read -r reboot_mode reboot_day < <(current_reboot_plan)
@@ -183,10 +184,11 @@ save_settings() {
     [[ -n $NET_MODE ]] || detect_network_state
 
     {
-        echo "# adguard-setup – gewählte Einstellungen (wird von adguard-backup mitgesichert)"
+        echo "# system-setup – gewählte Einstellungen (wird von system-backup mitgesichert)"
         echo "# Stand: $(date '+%Y-%m-%d %H:%M')"
         echo "CONF_VERSION=$CONF_VERSION"
         echo "HOSTNAME=$(hostname)"
+        echo "ADMIN_USER=$ADMIN_USER"
         echo "REBOOT_TIME=$(current_reboot_time)"
         echo "REBOOT_MODE=$reboot_mode"
         echo "REBOOT_DAY=$reboot_day"
@@ -202,13 +204,13 @@ save_settings() {
 # ---------------------------------------------------------------- 0. Backup übernehmen
 
 step_restore() {
-    # Nur bei der allerersten Einrichtung anbieten (später: sudo adguard-backup)
+    # Nur bei der allerersten Einrichtung anbieten (später: sudo system-backup)
     [[ -f $DONE_FILE ]] && return 0
-    [[ -x $ADGUARD_BACKUP ]] || return 0
+    [[ -x $SYSTEM_BACKUP ]] || return 0
 
     local dir choice
     dir="$(mktemp -d)"
-    if ! "$ADGUARD_BACKUP" --fetch-usb "$dir" >/dev/null 2>&1; then
+    if ! "$SYSTEM_BACKUP" --fetch-usb "$dir" >/dev/null 2>&1; then
         rm -rf "$dir"
         return 0          # kein Stick mit Backup – normal weiter
     fi
@@ -219,7 +221,7 @@ step_restore() {
 
     # Auswahl je nachdem, ob Systemeinstellungen im Backup enthalten sind
     local restore_agh=0 use_settings=0
-    if [[ -f $dir/adguard-setup.conf ]]; then
+    if [[ -f $dir/system-setup.conf ]]; then
         choice="$(choose "$T_CHOICE" 1 \
             "$T_SETUP_RESTORE_ALL" \
             "$T_SETUP_RESTORE_AGH_ONLY" \
@@ -236,7 +238,7 @@ step_restore() {
     fi
 
     if (( restore_agh )); then
-        if "$ADGUARD_BACKUP" --restore-file "$dir/AdGuardHome.yaml"; then
+        if "$SYSTEM_BACKUP" --restore-file "$dir/AdGuardHome.yaml"; then
             echo "$T_SETUP_RESTORE_DONE"
         else
             warn "$T_SETUP_RESTORE_FAILED"
@@ -245,7 +247,7 @@ step_restore() {
         echo "$T_SETUP_RESTORE_SKIPPED"
     fi
     if (( use_settings )); then
-        load_presets "$dir/adguard-setup.conf"
+        load_presets "$dir/system-setup.conf"
         echo
         echo "$T_SETUP_PRESETS_1"
         echo "$T_SETUP_PRESETS_2"
@@ -283,6 +285,110 @@ step_hostname() {
     t "$T_SETUP_HOSTNAME_SET\n" "$new"
 }
 
+# ---------------------------------------------------------------- 1b. Eigener Administrator
+#
+# Der Installer legt den Benutzer "adguard" an (Name steht öffentlich im README).
+# Umbenennen geht nicht, solange man als dieser Benutzer angemeldet ist, deshalb:
+#   1. Lauf (als adguard):  neuen Administrator anlegen, abmelden, neu anmelden
+#   2. Lauf (als neuer):    alten Benutzer adguard löschen
+# Gelöscht wird nur, wenn man gerade als ANDERER Administrator per sudo arbeitet
+# (damit ist bewiesen, dass Anmeldung und sudo mit dem neuen Benutzer gehen) und
+# adguard keine laufenden Prozesse mehr hat. Vorauswahl immer "nein".
+
+INSTALL_USER="adguard"
+ADMIN_USER=""   # für /etc/system-setup.conf (gesetzt in step_admin_user)
+
+# Benutzer mit UID >= 1000 in der Gruppe sudo
+admin_users() {
+    local u
+    for u in $(getent group sudo | cut -d: -f4 | tr , ' '); do
+        if (( $(id -u "$u" 2>/dev/null || echo 0) >= 1000 )); then echo "$u"; fi
+    done
+    return 0
+}
+
+step_admin_user() {
+    info "$T_SETUP_USER_TITLE"
+    local me="${SUDO_USER:-}" new suggestion groups g keys
+
+    # Wer gerade angemeldet ist, ist der Administrator (für das Backup)
+    [[ -n $me && $me != root ]] && ADMIN_USER="$me"
+    [[ -n $ADMIN_USER ]] || ADMIN_USER="$(admin_users | head -n1)"
+    t "$T_SETUP_USER_CURRENT\n" "${me:-root}"
+
+    # 2. Lauf: alten Installationsbenutzer löschen
+    if [[ -n $me && $me != root && $me != "$INSTALL_USER" ]] \
+       && id "$INSTALL_USER" &>/dev/null && id -nG "$me" | grep -qw sudo; then
+        t "$T_SETUP_USER_OLD_EXISTS\n" "$INSTALL_USER"
+        if pgrep -u "$INSTALL_USER" >/dev/null 2>&1; then
+            warn "$(t "$T_SETUP_USER_OLD_BUSY" "$INSTALL_USER")"
+            return 0
+        fi
+        local home extra
+        home="$(getent passwd "$INSTALL_USER" | cut -d: -f6)"
+        # Eigene Dateien im Home-Ordner zeigen (Standarddateien von Debian nicht)
+        extra="$(find "$home" -mindepth 1 -maxdepth 1 ! -name '.bashrc' ! -name '.profile' \
+                 ! -name '.bash_logout' ! -name '.bash_history' ! -name '.sudo_as_admin_successful' \
+                 ! -name '.lesshst' ! -name '.cache' ! -name '.local' ! -name '.config' \
+                 -printf '      %f\n' 2>/dev/null || true)"
+        if [[ -n $extra ]]; then
+            t "$T_SETUP_USER_OLD_FILES\n" "$home"
+            echo "$extra"
+        fi
+        if yesno "$(t "$T_SETUP_USER_Q_DELETE" "$INSTALL_USER")" n; then
+            userdel -r "$INSTALL_USER" 2>/dev/null || userdel "$INSTALL_USER"
+            t "$T_SETUP_USER_DELETED\n" "$INSTALL_USER"
+        fi
+        return 0
+    fi
+
+    # 1. Lauf: neuen Administrator anlegen (nur, solange man als adguard arbeitet)
+    [[ $me == "$INSTALL_USER" ]] || return 0
+    echo "$T_SETUP_USER_INFO_1"
+    echo "$T_SETUP_USER_INFO_2"
+    suggestion="${PRESET[ADMIN_USER]:-}"
+    [[ $suggestion == "$INSTALL_USER" ]] && suggestion=""
+    [[ -n $suggestion ]] && t "$T_SETUP_FROM_BACKUP\n" "$suggestion"
+    yesno "$T_SETUP_USER_Q_CREATE" n || return 0
+
+    while true; do
+        new="$(ask "$T_SETUP_USER_Q_NAME" "$suggestion")"
+        if [[ ! $new =~ ^[a-z_][a-z0-9_-]{0,31}$ || $new == "$INSTALL_USER" || $new == root ]]; then
+            warn "$T_SETUP_USER_NAME_INVALID"
+            continue
+        fi
+        if id "$new" &>/dev/null; then
+            warn "$(t "$T_SETUP_USER_EXISTS" "$new")"
+            continue
+        fi
+        break
+    done
+
+    adduser --disabled-password --comment "" "$new" >/dev/null 2>&1 \
+        || adduser --disabled-password --gecos "" "$new" >/dev/null
+    # Dieselben Gruppen wie der bisherige Benutzer (sudo, audio, video …)
+    groups="$(id -nG "$me" | tr ' ' '\n' | grep -vx "$me" | paste -sd, -)"
+    [[ -n $groups ]] && usermod -aG "$groups" "$new"
+    id -nG "$new" | grep -qw sudo || usermod -aG sudo "$new"
+    # SSH-Schlüssel mitnehmen, falls vorhanden
+    keys="$(getent passwd "$me" | cut -d: -f6)/.ssh/authorized_keys"
+    if [[ -f $keys ]]; then
+        g="$(getent passwd "$new" | cut -d: -f6)/.ssh"
+        install -d -m 700 -o "$new" -g "$(id -gn "$new")" "$g"
+        install -m 600 -o "$new" -g "$(id -gn "$new")" "$keys" "$g/authorized_keys"
+        echo "$T_SETUP_USER_KEYS_COPIED"
+    fi
+
+    t "$T_SETUP_USER_Q_PASSWORD\n" "$new"
+    until passwd "$new"; do
+        warn "$T_SETUP_USER_PASSWORD_RETRY"
+    done
+
+    ADMIN_USER="$new"
+    t "$T_SETUP_USER_CREATED\n" "$new"
+    warn "$(t "$T_SETUP_USER_NEXT" "$new" "$INSTALL_USER")"
+}
+
 # ---------------------------------------------------------------- 2. Linux-Passwort
 
 step_linux_password() {
@@ -301,9 +407,9 @@ step_linux_password() {
 
 # ---------------------------------------------------------------- 3. Neustart-Zeitplan
 
-REBOOT_TIMER="/etc/systemd/system/adguard-reboot.timer"
-REBOOT_SERVICE="/etc/systemd/system/adguard-reboot.service"
-APT_REBOOT_CONF="/etc/apt/apt.conf.d/53adguard-reboot-time"
+REBOOT_TIMER="/etc/systemd/system/system-reboot.timer"
+REBOOT_SERVICE="/etc/systemd/system/system-reboot.service"
+APT_REBOOT_CONF="/etc/apt/apt.conf.d/53system-reboot-time"
 
 step_reboot() {
     info "$T_SETUP_REBOOT_TITLE"
@@ -340,11 +446,11 @@ step_reboot() {
         [[ $time =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] && break
         warn "$T_SETUP_REBOOT_TIME_FORMAT"
     done
-    printf '// erzeugt von adguard-setup\nUnattended-Upgrade::Automatic-Reboot-Time "%s";\n' "$time" > "$APT_REBOOT_CONF"
+    printf '// erzeugt von system-setup\nUnattended-Upgrade::Automatic-Reboot-Time "%s";\n' "$time" > "$APT_REBOOT_CONF"
 
     if ! yesno "$T_SETUP_REBOOT_Q_REGULAR" "$def_regular"; then
         if [[ -f $REBOOT_TIMER ]]; then
-            systemctl disable --now adguard-reboot.timer 2>/dev/null || true
+            systemctl disable --now system-reboot.timer 2>/dev/null || true
             rm -f "$REBOOT_TIMER" "$REBOOT_SERVICE"
             systemctl daemon-reload
         fi
@@ -367,7 +473,7 @@ step_reboot() {
 
     # Die Beschreibung ist nur für systemctl; Begrüßung und Setup lesen OnCalendar
     cat > "$REBOOT_SERVICE" <<EOF
-# erzeugt von adguard-setup
+# erzeugt von system-setup
 [Unit]
 Description=$T_SETUP_REBOOT_SERVICE_DESC
 
@@ -376,7 +482,7 @@ Type=oneshot
 ExecStart=/usr/bin/systemctl reboot
 EOF
     cat > "$REBOOT_TIMER" <<EOF
-# erzeugt von adguard-setup – ändern mit: sudo adguard-setup
+# erzeugt von system-setup – ändern mit: sudo system-setup
 [Unit]
 Description=$(t "$T_SETUP_REBOOT_TIMER_DESC" "$desc")
 
@@ -389,7 +495,7 @@ Persistent=false
 WantedBy=timers.target
 EOF
     systemctl daemon-reload
-    systemctl enable --now adguard-reboot.timer
+    systemctl enable --now system-reboot.timer
     t "$T_SETUP_REBOOT_DONE\n" "$desc"
 }
 
@@ -420,7 +526,7 @@ step_cockpit() {
     ufw allow 9090/tcp >/dev/null
     systemctl enable --now cockpit.socket
     # Web-Konsole in den Login-Banner aufnehmen
-    /usr/local/sbin/adguard-banner || true
+    /usr/local/sbin/system-banner || true
     t "$T_SETUP_COCKPIT_DONE\n" "https://$ip:9090"
     warn "$T_SETUP_CERT_WARNING"
 }
@@ -454,7 +560,7 @@ write_resolv_conf() {   # write_resolv_conf dns1 [dns2]
         return
     fi
     {
-        echo "# erzeugt von adguard-setup"
+        echo "# erzeugt von system-setup"
         for d in "$@"; do [[ -n $d ]] && echo "nameserver $d"; done
     } > /etc/resolv.conf
 }
@@ -528,7 +634,7 @@ step_network() {
         ifupdown)
             cp -a /etc/network/interfaces "/etc/network/interfaces.bak.$(date +%Y%m%d%H%M%S)"
             {
-                echo "# erzeugt von adguard-setup – Backup: /etc/network/interfaces.bak.*"
+                echo "# erzeugt von system-setup – Backup: /etc/network/interfaces.bak.*"
                 echo "source /etc/network/interfaces.d/*"
                 echo
                 echo "auto lo"
@@ -548,7 +654,7 @@ step_network() {
         networkd)
             local f="/etc/systemd/network/10-$iface.network"
             {
-                echo "# erzeugt von adguard-setup"
+                echo "# erzeugt von system-setup"
                 echo "[Match]"
                 echo "Name=$iface"
                 echo
@@ -579,7 +685,7 @@ step_network() {
             ;;
     esac
 
-    # Für /etc/adguard-setup.conf merken (gilt erst nach dem Neustart)
+    # Für /etc/system-setup.conf merken (gilt erst nach dem Neustart)
     NET_MODE="$mode" NET_ADDR="${addr:-}" NET_GW="${gw:-}" NET_DNS1="${dns1:-}" NET_DNS2="${dns2:-}"
 
     echo "$T_SETUP_NET_DONE"
@@ -599,16 +705,19 @@ version_gt() {
     [[ $1 != "$2" && $(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n1) == "$1" ]]
 }
 
-# Abschnitte aus CHANGELOG.md, die neuer als die installierte Version sind
-# (bei unbekannter Version nur der neueste Abschnitt)
+# Abschnitte aus CHANGELOG.md, die neuer als die installierte Version sind und
+# höchstens die Zielversion (bei unbekannter installierter Version nur der Abschnitt
+# der Zielversion bzw. der neueste)
 show_changes() {
-    local file="$1" from="$2" line ver show=0 shown=0
+    local file="$1" from="$2" to="${3:-}" line ver show=0 shown=0
     [[ -f $file ]] || { echo "  ($T_UPDATE_NO_CHANGELOG)"; return; }
     while IFS= read -r line; do
         if [[ $line =~ ^##[[:space:]]+(v[0-9][0-9A-Za-z.-]*) ]]; then
             ver="${BASH_REMATCH[1]}"
             show=0
-            if [[ $from =~ ^v[0-9] ]]; then
+            if [[ -n $to ]] && version_gt "$ver" "$to"; then
+                show=0
+            elif [[ $from =~ ^v[0-9] ]]; then
                 version_gt "$ver" "$from" && show=1
             else
                 (( shown == 0 )) && show=1
@@ -620,19 +729,29 @@ show_changes() {
     (( shown )) || echo "  ($T_UPDATE_NO_ENTRIES)"
 }
 
+# do_update [VERSION] – ohne Angabe auf das neueste Release, sonst auf genau
+# diese Version (z.B. als Zwischenschritt, siehe MIN_UPDATE_FROM)
 do_update() {
-    local repo current latest tmp changelog
+    local wanted="${1:-}" repo current latest tmp changelog min
     repo="$(cat "$SETUP_DIR/REPO" 2>/dev/null || true)"
     [[ $repo =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || repo="$DEFAULT_REPO"
     current="$(installed_version)"
 
     info "$T_UPDATE_TITLE"
-    t "$T_UPDATE_SEARCHING\n" "github.com/$repo"
-    latest="$(curl -fsSL --max-time 20 "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null \
-              | sed -n 's/^[[:space:]]*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
-    if [[ ! $latest =~ ^v[0-9][0-9A-Za-z.-]*$ ]]; then
-        err "$T_UPDATE_NO_LATEST"
-        return 1
+    if [[ -n $wanted ]]; then
+        if [[ ! $wanted =~ ^v[0-9][0-9A-Za-z.-]*$ ]]; then
+            err "$(t "$T_UPDATE_BAD_VERSION" "$wanted")"
+            return 2
+        fi
+        latest="$wanted"
+    else
+        t "$T_UPDATE_SEARCHING\n" "github.com/$repo"
+        latest="$(curl -fsSL --max-time 20 "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null \
+                  | sed -n 's/^[[:space:]]*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+        if [[ ! $latest =~ ^v[0-9][0-9A-Za-z.-]*$ ]]; then
+            err "$T_UPDATE_NO_LATEST"
+            return 1
+        fi
     fi
 
     echo
@@ -640,6 +759,11 @@ do_update() {
     t "  $T_UPDATE_AVAILABLE\n" "$latest"
     if [[ $current == "$latest" ]] || { [[ $current =~ ^v[0-9] ]] && ! version_gt "$latest" "$current"; }; then
         echo
+        if [[ -n $wanted && $current != "$latest" ]]; then
+            # Zurück auf eine ältere Version geht nicht (Umstellungen sind einmalig)
+            err "$(t "$T_UPDATE_NO_DOWNGRADE" "$latest" "$current")"
+            return 1
+        fi
         info "$(t "$T_UPDATE_UP_TO_DATE" "$current")"
         return 0
     fi
@@ -655,6 +779,18 @@ do_update() {
         return 1
     fi
 
+    # Mindestversion der neuen Version (Datei MIN_UPDATE_FROM im Repo): Ist dieses
+    # Gerät älter, fehlt in der neuen Version Umstellungscode – abbrechen, bevor
+    # etwas geändert wird, und den Zwischenschritt nennen.
+    min="$(grep -vE '^[[:space:]]*(#|$)' "$tmp/MIN_UPDATE_FROM" 2>/dev/null | head -n1 | tr -d '[:space:]' || true)"
+    if [[ $min =~ ^v[0-9][0-9A-Za-z.-]*$ && $current =~ ^v[0-9] ]] && version_gt "$min" "$current"; then
+        echo
+        err "$(t "$T_UPDATE_TOO_OLD" "$latest" "$min" "$current")"
+        t "$T_UPDATE_STEP_1\n" "sudo system-setup --update $min"
+        t "$T_UPDATE_STEP_2\n" "sudo system-setup --update"
+        return 1
+    fi
+
     # Änderungsliste in der Sprache des Geräts, sonst die englische
     changelog="$tmp/CHANGELOG.$TEXTS.md"
     [[ -f $changelog ]] || changelog="$tmp/CHANGELOG.md"
@@ -662,7 +798,7 @@ do_update() {
     echo
     echo "  $T_UPDATE_CHANGES"
     echo "  ----------------------------------------------------------------"
-    show_changes "$changelog" "$current"
+    show_changes "$changelog" "$current" "$latest"
     echo "  ----------------------------------------------------------------"
     t "  $T_UPDATE_DETAILS\n" "https://github.com/$repo/releases"
     echo
@@ -677,7 +813,7 @@ do_update() {
     fi
 
     info "$T_UPDATE_BACKING_UP"
-    [[ -x $ADGUARD_BACKUP ]] && "$ADGUARD_BACKUP" --auto || true
+    [[ -x $SYSTEM_BACKUP ]] && "$SYSTEM_BACKUP" --auto || true
 
     info "$(t "$T_UPDATE_INSTALLING" "$latest")"
     rm -rf "$SETUP_DIR.new"
@@ -687,8 +823,8 @@ do_update() {
     chmod 755 "$SETUP_DIR.new" "$SETUP_DIR.new"/scripts/*.sh
     rm -rf "$SETUP_DIR"
     mv "$SETUP_DIR.new" "$SETUP_DIR"
-    if ! "$SETUP_DIR/scripts/install.sh" > /var/log/adguard-setup-update.log 2>&1; then
-        err "$(t "$T_UPDATE_INSTALL_FAILED" /var/log/adguard-setup-update.log)"
+    if ! "$SETUP_DIR/scripts/install.sh" > /var/log/system-setup-update.log 2>&1; then
+        err "$(t "$T_UPDATE_INSTALL_FAILED" /var/log/system-setup-update.log)"
         return 1
     fi
 
@@ -709,7 +845,7 @@ main() {
         --update)
             # exit direkt hier: install.sh ersetzt dieses Skript, Bash soll danach
             # nichts mehr aus der Datei nachlesen
-            do_update
+            do_update "${2:-}"
             exit $? ;;
         --check)
             # für die Begrüßung: gibt es Fragen, die noch nie beantwortet wurden?
@@ -732,6 +868,7 @@ main() {
 
     step_restore
     step_hostname
+    step_admin_user
     step_linux_password
     step_reboot
     step_cockpit
@@ -739,7 +876,7 @@ main() {
 
     save_settings
     # Einstellungen gleich mitsichern (sonst erst in der nächsten Nacht)
-    [[ -x $ADGUARD_BACKUP ]] && "$ADGUARD_BACKUP" --auto >/dev/null 2>&1 || true
+    [[ -x $SYSTEM_BACKUP ]] && "$SYSTEM_BACKUP" --auto >/dev/null 2>&1 || true
 
     mkdir -p "$STATE_DIR"
     date '+%Y-%m-%d %H:%M' > "$DONE_FILE"
