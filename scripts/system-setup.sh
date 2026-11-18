@@ -353,7 +353,9 @@ step_admin_user() {
 
     while true; do
         new="$(ask "$T_SETUP_USER_Q_NAME" "$suggestion")"
-        if [[ ! $new =~ ^[a-z_][a-z0-9_-]{0,31}$ || $new == "$INSTALL_USER" || $new == root ]]; then
+        # Wie useradd: Kleinbuchstaben, Ziffern, _ - und Punkt (nicht am Anfang/Ende)
+        if [[ ! $new =~ ^[a-z_]([a-z0-9_.-]{0,30}[a-z0-9_-])?$ \
+              || $new == "$INSTALL_USER" || $new == root ]]; then
             warn "$T_SETUP_USER_NAME_INVALID"
             continue
         fi
@@ -364,8 +366,9 @@ step_admin_user() {
         break
     done
 
-    adduser --disabled-password --comment "" "$new" >/dev/null 2>&1 \
-        || adduser --disabled-password --gecos "" "$new" >/dev/null
+    # useradd statt adduser: adduser lehnt in der Debian-Grundeinstellung Punkte
+    # im Namen ab (z.B. vorname.nachname). -m legt den Home-Ordner aus /etc/skel an.
+    useradd -m -s /bin/bash -U "$new"
     # Dieselben Gruppen wie der bisherige Benutzer (sudo, audio, video …)
     groups="$(id -nG "$me" | tr ' ' '\n' | grep -vx "$me" | paste -sd, -)"
     [[ -n $groups ]] && usermod -aG "$groups" "$new"
