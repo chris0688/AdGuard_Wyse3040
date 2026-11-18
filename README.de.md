@@ -66,8 +66,9 @@ sich [ergänzen](#sprachen-und-regionen)).
    Bildschirm). Benutzer `adguard`, Passwort `adguard`. Danach geht es
    automatisch weiter:
    - Ein **neues Passwort** muss gesetzt werden (siehe [Sicherheit](#sicherheit)).
-   - Die **Grundeinrichtung** startet: Hostname, **regelmäßiger Neustart**,
-     optional die Web-Verwaltung Cockpit, **DHCP oder feste IP**
+   - Die **Grundeinrichtung** startet: Hostname, optional ein **eigener
+     Administrator** statt `adguard`, **regelmäßiger Neustart**, optional die
+     Web-Verwaltung Cockpit, **DHCP oder feste IP**
      (siehe [`system-setup`](#grundeinrichtung-system-setup)).
 7. Im Browser **`http://<IP>:3000`** öffnen und den AdGuard-Einrichtungsassistenten
    durchklicken (Admin-Benutzer mit **sicherem Passwort** anlegen, Webinterface auf
@@ -292,7 +293,7 @@ Hinweise zum Netzwerk:
 
 Optional über `system-setup` installierbar. [Cockpit](https://cockpit-project.org)
 ist eine Weboberfläche für das Linux-System unter **`https://<IP>:9090`**
-(Login mit dem Linux-Benutzer `adguard`):
+(Login mit dem Linux-Benutzer, also `adguard` oder dem eigenen Administrator):
 
 - Terminal im Browser (SSH-Client überflüssig)
 - Updates anzeigen und installieren
@@ -352,7 +353,7 @@ sudo ./scripts/install.sh
 holen (Beispiel von Windows aus, im Repo-Ordner):
 
 ```powershell
-scp adguard@<IP>:/etc/<pfad>/<datei> rootfs/etc/<pfad>/
+scp <benutzer>@<IP>:/etc/<pfad>/<datei> rootfs/etc/<pfad>/
 ```
 
 **Welche Dateien wurden auf einem Gerät geändert?**
@@ -478,7 +479,7 @@ nicht erreichbar. Uhrzeit und Rhythmus lassen sich mit `sudo system-setup` ände
   **3** → **Enter** für alle. Alternativ per „Download bereitlegen“ und
   [WinSCP](https://winscp.net) (grafisch, Anmeldung wie bei SSH) oder PowerShell:
   ```powershell
-  scp "adguard@<IP>:AdGuardHome-*.yaml" .
+  scp "<benutzer>@<IP>:AdGuardHome-*.yaml" .
   ```
 
   **Nach einer Neuinstallation wiederherstellen:** siehe

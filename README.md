@@ -65,8 +65,9 @@ stick (≥ 1 GB), and a keyboard and monitor for the installation only.
    the screen). User `adguard`, password `adguard`. Then it continues
    automatically:
    - You must set a **new password** (see [Security](#security)).
-   - The **basic setup** starts: hostname, **regular reboot**, optionally the
-     Cockpit web console, **DHCP or static IP**
+   - The **basic setup** starts: hostname, optionally **your own admin user**
+     instead of `adguard`, **regular reboot**, optionally the Cockpit web
+     console, **DHCP or static IP**
      (see [`system-setup`](#basic-setup-system-setup)).
 7. Open **`http://<IP>:3000`** in a browser and go through the AdGuard setup
    wizard (create an admin user with a **strong password**, web interface on
@@ -293,7 +294,7 @@ Network notes:
 
 Optionally installed via `system-setup`. [Cockpit](https://cockpit-project.org)
 is a web interface for the Linux system at **`https://<IP>:9090`** (log in with
-the Linux user `adguard`):
+the Linux user, i.e. `adguard` or your own admin user):
 
 - terminal in the browser (no SSH client needed)
 - show and install updates
@@ -354,7 +355,7 @@ sudo ./scripts/install.sh
 file with `scp` (example from Windows, in the repo folder):
 
 ```powershell
-scp adguard@<IP>:/etc/<path>/<file> rootfs/etc/<path>/
+scp <user>@<IP>:/etc/<path>/<file> rootfs/etc/<path>/
 ```
 
 **Which files were changed on a device?**
@@ -477,7 +478,7 @@ network. Time and frequency can be changed with `sudo system-setup`.
   "provide for download" and [WinSCP](https://winscp.net) (graphical, same
   login as SSH) or PowerShell:
   ```powershell
-  scp "adguard@<IP>:AdGuardHome-*.yaml" .
+  scp "<user>@<IP>:AdGuardHome-*.yaml" .
   ```
 
   **Restore after a reinstall:** see
