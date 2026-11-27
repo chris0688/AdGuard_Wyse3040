@@ -212,6 +212,12 @@ T_SETUP_USER_OLD_BUSY="%s is still logged in or programs are still running. Plea
 T_SETUP_USER_OLD_FILES="Your own files in %s (will be deleted too):"
 T_SETUP_USER_Q_DELETE="Delete user %s including the home folder?"
 T_SETUP_USER_DELETED="User %s deleted."
+T_SETUP_USER_ADMINS="Administrators: %s"
+T_SETUP_USER_OPT_KEEP="leave unchanged"
+T_SETUP_USER_OPT_ADD="create another administrator"
+T_SETUP_USER_OPT_DELETE="delete another administrator"
+T_SETUP_USER_Q_WHICH_DELETE="Which administrator do you want to delete?"
+T_SETUP_USER_HINT_RENAME="To rename: log in as the new user and delete the old one here."
 # Step 2: password
 T_SETUP_PASSWORD_TITLE="Linux user password"
 T_SETUP_PASSWORD_Q_CHANGE="Change the password of a Linux user?"

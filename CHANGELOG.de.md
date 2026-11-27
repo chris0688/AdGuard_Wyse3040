@@ -5,6 +5,13 @@ einem Update an. Änderungen, die nur bei einer **Neuinstallation** wirken (z.B.
 Installer, Partitionierung), sind entsprechend gekennzeichnet.
 English version: [CHANGELOG.md](CHANGELOG.md)
 
+## v1.2.2
+
+- Setup-Schritt Administrator: Nach dem Wechsel weg von `adguard` bietet das
+  Setup jetzt „unverändert lassen“ (Vorauswahl), „weiteren Administrator
+  anlegen“ und „anderen Administrator löschen“ an. So lässt sich der Name auch
+  später noch ändern. Der gerade angemeldete Benutzer wird nie gelöscht.
+
 ## v1.2.1
 
 - Fehler behoben: Mit fester IP zeigte der Login-Banner am Monitor nach dem

@@ -5,6 +5,13 @@ an update. Changes that only take effect on a **reinstall** (e.g. installer,
 partitioning) are marked as such.
 Deutsche Fassung: [CHANGELOG.de.md](CHANGELOG.de.md)
 
+## v1.2.2
+
+- Setup step administrator: after switching away from `adguard`, the setup now
+  offers "leave unchanged" (default), "create another administrator" and
+  "delete another administrator". This way the name can also be changed later.
+  The user currently logged in is never deleted.
+
 ## v1.2.1
 
 - Fixed: with a static IP, the login banner on the monitor showed `127.0.1.1`

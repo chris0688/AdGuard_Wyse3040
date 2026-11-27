@@ -211,6 +211,12 @@ T_SETUP_USER_OLD_BUSY="%s ist noch angemeldet oder es laufen noch Programme. Bit
 T_SETUP_USER_OLD_FILES="Eigene Dateien in %s (werden mit gelöscht):"
 T_SETUP_USER_Q_DELETE="Benutzer %s mit seinem Home-Ordner löschen?"
 T_SETUP_USER_DELETED="Benutzer %s gelöscht."
+T_SETUP_USER_ADMINS="Administratoren: %s"
+T_SETUP_USER_OPT_KEEP="unverändert lassen"
+T_SETUP_USER_OPT_ADD="weiteren Administrator anlegen"
+T_SETUP_USER_OPT_DELETE="anderen Administrator löschen"
+T_SETUP_USER_Q_WHICH_DELETE="Welchen Administrator löschen?"
+T_SETUP_USER_HINT_RENAME="Zum Umbenennen: als neuer Benutzer anmelden und den alten hier löschen."
 # Schritt 2: Passwort
 T_SETUP_PASSWORD_TITLE="Linux-Benutzerpasswort"
 T_SETUP_PASSWORD_Q_CHANGE="Passwort eines Linux-Benutzers ändern?"

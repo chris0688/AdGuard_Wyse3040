@@ -285,15 +285,17 @@ step_hostname() {
     t "$T_SETUP_HOSTNAME_SET\n" "$new"
 }
 
-# ---------------------------------------------------------------- 1b. Eigener Administrator
+# ---------------------------------------------------------------- 1b. Administrator
 #
 # Der Installer legt den Benutzer "adguard" an (Name steht öffentlich im README).
 # Umbenennen geht nicht, solange man als dieser Benutzer angemeldet ist, deshalb:
-#   1. Lauf (als adguard):  neuen Administrator anlegen, abmelden, neu anmelden
-#   2. Lauf (als neuer):    alten Benutzer adguard löschen
-# Gelöscht wird nur, wenn man gerade als ANDERER Administrator per sudo arbeitet
-# (damit ist bewiesen, dass Anmeldung und sudo mit dem neuen Benutzer gehen) und
-# adguard keine laufenden Prozesse mehr hat. Vorauswahl immer "nein".
+#   als adguard:             eigenen Administrator anlegen, abmelden, neu anmelden
+#   als anderer, adguard da: adguard löschen
+#   sonst:                   unverändert / weiteren Administrator anlegen /
+#                            anderen Administrator löschen (Vorauswahl unverändert)
+# Gelöscht wird nur ein ANDERER Benutzer als der, mit dem man gerade per sudo
+# arbeitet (damit ist bewiesen, dass Anmeldung und sudo funktionieren), und nur,
+# wenn er keine laufenden Prozesse mehr hat. Ja/Nein-Fragen immer Vorauswahl nein.
 
 INSTALL_USER="adguard"
 ADMIN_USER=""   # für /etc/system-setup.conf (gesetzt in step_admin_user)
@@ -307,50 +309,11 @@ admin_users() {
     return 0
 }
 
-step_admin_user() {
-    info "$T_SETUP_USER_TITLE"
-    local me="${SUDO_USER:-}" new suggestion groups g keys
-
-    # Wer gerade angemeldet ist, ist der Administrator (für das Backup)
-    [[ -n $me && $me != root ]] && ADMIN_USER="$me"
-    [[ -n $ADMIN_USER ]] || ADMIN_USER="$(admin_users | head -n1)"
-    t "$T_SETUP_USER_CURRENT\n" "${me:-root}"
-
-    # 2. Lauf: alten Installationsbenutzer löschen
-    if [[ -n $me && $me != root && $me != "$INSTALL_USER" ]] \
-       && id "$INSTALL_USER" &>/dev/null && id -nG "$me" | grep -qw sudo; then
-        t "$T_SETUP_USER_OLD_EXISTS\n" "$INSTALL_USER"
-        if pgrep -u "$INSTALL_USER" >/dev/null 2>&1; then
-            warn "$(t "$T_SETUP_USER_OLD_BUSY" "$INSTALL_USER")"
-            return 0
-        fi
-        local home extra
-        home="$(getent passwd "$INSTALL_USER" | cut -d: -f6)"
-        # Eigene Dateien im Home-Ordner zeigen (Standarddateien von Debian nicht)
-        extra="$(find "$home" -mindepth 1 -maxdepth 1 ! -name '.bashrc' ! -name '.profile' \
-                 ! -name '.bash_logout' ! -name '.bash_history' ! -name '.sudo_as_admin_successful' \
-                 ! -name '.lesshst' ! -name '.cache' ! -name '.local' ! -name '.config' \
-                 -printf '      %f\n' 2>/dev/null || true)"
-        if [[ -n $extra ]]; then
-            t "$T_SETUP_USER_OLD_FILES\n" "$home"
-            echo "$extra"
-        fi
-        if yesno "$(t "$T_SETUP_USER_Q_DELETE" "$INSTALL_USER")" n; then
-            userdel -r "$INSTALL_USER" 2>/dev/null || userdel "$INSTALL_USER"
-            t "$T_SETUP_USER_DELETED\n" "$INSTALL_USER"
-        fi
-        return 0
-    fi
-
-    # 1. Lauf: neuen Administrator anlegen (nur, solange man als adguard arbeitet)
-    [[ $me == "$INSTALL_USER" ]] || return 0
-    echo "$T_SETUP_USER_INFO_1"
-    echo "$T_SETUP_USER_INFO_2"
-    suggestion="${PRESET[ADMIN_USER]:-}"
-    [[ $suggestion == "$INSTALL_USER" ]] && suggestion=""
-    [[ -n $suggestion ]] && t "$T_SETUP_FROM_BACKUP\n" "$suggestion"
-    yesno "$T_SETUP_USER_Q_CREATE" n || return 0
-
+# create_admin VORSCHLAG – fragt Name und Passwort ab und legt einen Administrator
+# an (gleiche Gruppen wie der angemeldete Benutzer, SSH-Schlüssel werden kopiert).
+# Ergebnis in CREATED_USER.
+create_admin() {
+    local suggestion="$1" me="${SUDO_USER:-}" new groups g keys
     while true; do
         new="$(ask "$T_SETUP_USER_Q_NAME" "$suggestion")"
         # Wie useradd: Kleinbuchstaben, Ziffern, _ - und Punkt (nicht am Anfang/Ende)
@@ -370,26 +333,103 @@ step_admin_user() {
     # im Namen ab (z.B. vorname.nachname). -m legt den Home-Ordner aus /etc/skel an.
     useradd -m -s /bin/bash -U "$new"
     # Dieselben Gruppen wie der bisherige Benutzer (sudo, audio, video …)
-    groups="$(id -nG "$me" | tr ' ' '\n' | grep -vx "$me" | paste -sd, -)"
-    [[ -n $groups ]] && usermod -aG "$groups" "$new"
-    id -nG "$new" | grep -qw sudo || usermod -aG sudo "$new"
-    # SSH-Schlüssel mitnehmen, falls vorhanden
-    keys="$(getent passwd "$me" | cut -d: -f6)/.ssh/authorized_keys"
-    if [[ -f $keys ]]; then
-        g="$(getent passwd "$new" | cut -d: -f6)/.ssh"
-        install -d -m 700 -o "$new" -g "$(id -gn "$new")" "$g"
-        install -m 600 -o "$new" -g "$(id -gn "$new")" "$keys" "$g/authorized_keys"
-        echo "$T_SETUP_USER_KEYS_COPIED"
+    if [[ -n $me && $me != root ]]; then
+        groups="$(id -nG "$me" | tr ' ' '\n' | grep -vx "$me" | paste -sd, -)"
+        if [[ -n $groups ]]; then usermod -aG "$groups" "$new"; fi
+        # SSH-Schlüssel mitnehmen, falls vorhanden
+        keys="$(getent passwd "$me" | cut -d: -f6)/.ssh/authorized_keys"
+        if [[ -f $keys ]]; then
+            g="$(getent passwd "$new" | cut -d: -f6)/.ssh"
+            install -d -m 700 -o "$new" -g "$(id -gn "$new")" "$g"
+            install -m 600 -o "$new" -g "$(id -gn "$new")" "$keys" "$g/authorized_keys"
+            echo "$T_SETUP_USER_KEYS_COPIED"
+        fi
     fi
+    id -nG "$new" | grep -qw sudo || usermod -aG sudo "$new"
 
     t "$T_SETUP_USER_Q_PASSWORD\n" "$new"
     until passwd "$new"; do
         warn "$T_SETUP_USER_PASSWORD_RETRY"
     done
-
-    ADMIN_USER="$new"
     t "$T_SETUP_USER_CREATED\n" "$new"
-    warn "$(t "$T_SETUP_USER_NEXT" "$new" "$INSTALL_USER")"
+    CREATED_USER="$new"
+}
+
+# delete_user NAME – löscht einen Benutzer mit Home-Ordner nach Rückfrage
+# (zeigt vorher eigene Dateien). Nie den gerade angemeldeten.
+delete_user() {
+    local user="$1" home extra
+    [[ $user != "${SUDO_USER:-}" && $user != root ]] || return 0
+    if pgrep -u "$user" >/dev/null 2>&1; then
+        warn "$(t "$T_SETUP_USER_OLD_BUSY" "$user")"
+        return 0
+    fi
+    home="$(getent passwd "$user" | cut -d: -f6)"
+    # Eigene Dateien im Home-Ordner zeigen (Standarddateien von Debian nicht)
+    extra="$(find "$home" -mindepth 1 -maxdepth 1 ! -name '.bashrc' ! -name '.profile' \
+             ! -name '.bash_logout' ! -name '.bash_history' ! -name '.sudo_as_admin_successful' \
+             ! -name '.lesshst' ! -name '.cache' ! -name '.local' ! -name '.config' \
+             -printf '      %f\n' 2>/dev/null || true)"
+    if [[ -n $extra ]]; then
+        t "$T_SETUP_USER_OLD_FILES\n" "$home"
+        echo "$extra"
+    fi
+    if yesno "$(t "$T_SETUP_USER_Q_DELETE" "$user")" n; then
+        userdel -r "$user" 2>/dev/null || userdel "$user"
+        t "$T_SETUP_USER_DELETED\n" "$user"
+    fi
+}
+
+step_admin_user() {
+    info "$T_SETUP_USER_TITLE"
+    local me="${SUDO_USER:-}" suggestion choice others=() u
+    CREATED_USER=""
+
+    # Wer gerade angemeldet ist, ist der Administrator (für das Backup)
+    [[ -n $me && $me != root ]] && ADMIN_USER="$me"
+    [[ -n $ADMIN_USER ]] || ADMIN_USER="$(admin_users | head -n1)"
+    t "$T_SETUP_USER_CURRENT\n" "${me:-root}"
+
+    # Als adguard: eigenen Administrator anlegen (einmaliger Wechsel)
+    if [[ $me == "$INSTALL_USER" ]]; then
+        echo "$T_SETUP_USER_INFO_1"
+        echo "$T_SETUP_USER_INFO_2"
+        suggestion="${PRESET[ADMIN_USER]:-}"
+        [[ $suggestion == "$INSTALL_USER" ]] && suggestion=""
+        [[ -n $suggestion ]] && t "$T_SETUP_FROM_BACKUP\n" "$suggestion"
+        yesno "$T_SETUP_USER_Q_CREATE" n || return 0
+        create_admin "$suggestion"
+        ADMIN_USER="$CREATED_USER"
+        warn "$(t "$T_SETUP_USER_NEXT" "$CREATED_USER" "$INSTALL_USER")"
+        return 0
+    fi
+
+    # Ab hier nur als anderer Administrator per sudo (sonst nichts anbieten)
+    [[ -n $me && $me != root ]] && id -nG "$me" | grep -qw sudo || return 0
+
+    # adguard noch vorhanden: Löschen anbieten
+    if id "$INSTALL_USER" &>/dev/null; then
+        t "$T_SETUP_USER_OLD_EXISTS\n" "$INSTALL_USER"
+        delete_user "$INSTALL_USER"
+        return 0
+    fi
+
+    # Normalfall: weiteren Administrator anlegen oder einen anderen löschen
+    for u in $(admin_users); do [[ $u == "$me" ]] || others+=("$u"); done
+    t "$T_SETUP_USER_ADMINS\n" "$(admin_users | paste -sd ' ' - | sed 's/ /, /g')"
+    if (( ${#others[@]} )); then
+        choice="$(choose "$T_CHOICE" 1 "$T_SETUP_USER_OPT_KEEP" "$T_SETUP_USER_OPT_ADD" "$T_SETUP_USER_OPT_DELETE")"
+    else
+        choice="$(choose "$T_CHOICE" 1 "$T_SETUP_USER_OPT_KEEP" "$T_SETUP_USER_OPT_ADD")"
+    fi
+    case "$choice" in
+        2)  create_admin ""
+            echo "$T_SETUP_USER_HINT_RENAME" ;;
+        3)  echo "$T_SETUP_USER_Q_WHICH_DELETE"
+            choice="$(choose "$T_CHOICE" "$(( ${#others[@]} + 1 ))" "${others[@]}" "$T_BACK")"
+            (( choice <= ${#others[@]} )) && delete_user "${others[$((choice - 1))]}" ;;
+    esac
+    return 0
 }
 
 # ---------------------------------------------------------------- 2. Linux-Passwort
