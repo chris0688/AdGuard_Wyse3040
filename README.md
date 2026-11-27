@@ -274,7 +274,7 @@ Every step can be skipped:
 | 2. Password | changes the password of a Linux user |
 | 3. Reboot | **time** for reboots (default 04:00, also used for reboots after updates) and **regular reboot** (recommended): daily or weekly on a chosen day (default Sunday). The current time and time zone of the device are shown for reference. |
 | 4. Cockpit | optionally installs the [web console](#web-console-cockpit) |
-| 5. Network | **keep DHCP** or set a **static IP** with gateway and DNS. Supports `ifupdown` (Debian default), `systemd-networkd` and NetworkManager. Takes effect after a reboot. |
+| 5. Network | With several wired network interfaces, first asks which one is connected to your home network (stored locally only, not in the backup). Then **keep DHCP** or set a **static IP** with gateway and DNS. Supports `ifupdown` (Debian default), `systemd-networkd` and NetworkManager. Takes effect after a reboot. |
 
 `system-setup` stores the chosen settings in `/etc/system-setup.conf`
 (hostname, reboot schedule, Cockpit yes/no, DHCP or static IP). The file is

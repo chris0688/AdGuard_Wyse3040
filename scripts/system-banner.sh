@@ -52,10 +52,14 @@ fi
 # gesetzt, bevor das Kabel verbunden ist – dann blieb 127.0.1.1 stehen, weil
 # agetty nur bei Adressänderungen neu zeichnet. Mit fester Karte zeigt es deren
 # Adresse sofort (bei DHCP weiterhin, sobald sie kommt).
-# Karte: die mit der Standardroute, sonst die erste kabelgebundene, sonst \4.
+# Karte: die im Setup gewählte (nur lokal gespeichert, bei mehreren Kabelkarten
+# gefragt), sonst die mit der Standardroute, sonst die erste kabelgebundene,
+# sonst \4.
 net_iface() {
     local i
-    i="$(ip -o route show default 2>/dev/null | awk '{print $5; exit}')"
+    i="$(cat /var/lib/system-setup/net-iface 2>/dev/null || true)"
+    [[ $i =~ ^[A-Za-z0-9._-]+$ && -e /sys/class/net/$i ]] || i=""
+    [[ -n $i ]] || i="$(ip -o route show default 2>/dev/null | awk '{print $5; exit}')"
     if [[ -z $i ]]; then
         for i in /sys/class/net/*; do
             [[ -e $i/device && ! -d $i/wireless && ! -d $i/phy80211 ]] || continue

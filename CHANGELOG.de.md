@@ -11,6 +11,10 @@ English version: [CHANGELOG.md](CHANGELOG.md)
   Start `127.0.1.1` statt der IP (die Adresse ist dann schon gesetzt, bevor
   das Kabel verbunden ist, und der Banner wurde nicht neu gezeichnet). Der
   Banner nennt jetzt die Netzwerkkarte ausdrücklich.
+- Netzwerk-Schritt im Setup: Bei mehreren Kabel-Netzwerkkarten fragt das Setup,
+  welche mit dem Heimnetz verbunden ist (mit IP und Verbindungsstatus). Die Wahl
+  wird nur lokal gespeichert, nicht im Backup – auf anderer Hardware heißen die
+  Karten anders. Bei einer Karte gibt es keine Frage.
 
 ## v1.2.0
 

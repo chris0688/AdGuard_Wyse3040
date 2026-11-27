@@ -11,6 +11,10 @@ Deutsche Fassung: [CHANGELOG.de.md](CHANGELOG.de.md)
   instead of the IP after boot (the address is set before the cable is
   connected, and the banner was not redrawn). The banner now names the network
   interface explicitly.
+- Network step in the setup: with several wired network interfaces, the setup
+  asks which one is connected to your home network (with IP and link status).
+  The choice is stored locally only, not in the backup – on other hardware the
+  interfaces have different names. With one interface there is no question.
 
 ## v1.2.0
 

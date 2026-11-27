@@ -536,9 +536,34 @@ step_cockpit() {
 
 # ---------------------------------------------------------------- 5. Netzwerk
 
+# Netzwerkkarte zum Heimnetz, im Setup gewählt (nur bei mehreren Kabelkarten
+# gefragt). Bewusst NUR lokal und nicht im Backup: Auf anderer Hardware heißen
+# die Karten anders. Wird auch von system-banner gelesen.
+NET_IFACE_FILE="$STATE_DIR/net-iface"
+
+# Kabelgebundene Netzwerkkarten (echte Hardware, kein WLAN, kein lo/virtuell)
+wired_ifaces() {
+    local d
+    for d in /sys/class/net/*; do
+        [[ -e $d/device && ! -d $d/wireless && ! -d $d/phy80211 ]] || continue
+        [[ $(cat "$d/type" 2>/dev/null) == 1 ]] || continue
+        echo "${d##*/}"
+    done
+    return 0
+}
+
+# Gespeicherte Karte, falls es sie (noch) gibt
+saved_iface() {
+    local i
+    i="$(cat "$NET_IFACE_FILE" 2>/dev/null || true)"
+    [[ $i =~ ^[A-Za-z0-9._-]+$ && -e /sys/class/net/$i ]] && echo "$i"
+    return 0
+}
+
 detect_iface() {
     local i
-    i="$(ip -o route show default 2>/dev/null | awk '{print $5; exit}')"
+    i="$(saved_iface)"
+    [[ -n $i ]] || i="$(ip -o route show default 2>/dev/null | awk '{print $5; exit}')"
     if [[ -z $i ]]; then
         i="$(ip -o link show | awk -F': ' '$2 != "lo" {print $2; exit}' | cut -d@ -f1)"
     fi
@@ -568,10 +593,50 @@ write_resolv_conf() {   # write_resolv_conf dns1 [dns2]
     } > /etc/resolv.conf
 }
 
+# Setzt NET_IFACE: bei einer Kabelkarte diese, bei mehreren Auswahl (Vorschlag:
+# gespeicherte Karte, sonst die mit der Standardroute). Merkt sich die Wahl
+# lokal und erneuert den Login-Banner.
+choose_net_iface() {
+    local -a list lines=()
+    local i def=1 n=1 addr state preferred
+    mapfile -t list < <(wired_ifaces)
+    if (( ${#list[@]} == 0 )); then
+        NET_IFACE="$(detect_iface)"
+        return 0
+    fi
+    if (( ${#list[@]} == 1 )); then
+        NET_IFACE="${list[0]}"
+    else
+        preferred="$(saved_iface)"
+        [[ -n $preferred ]] || preferred="$(ip -o route show default 2>/dev/null | awk '{print $5; exit}')"
+        for i in "${list[@]}"; do
+            addr="$(ip -4 -o addr show dev "$i" 2>/dev/null | awk '{print $4; exit}')"
+            if [[ $(cat "/sys/class/net/$i/carrier" 2>/dev/null) == 1 ]]; then
+                state="$T_SETUP_NET_CONNECTED"
+            else
+                state="$T_SETUP_NET_NOT_CONNECTED"
+            fi
+            lines+=("$(printf '%-10s %-18s %s' "$i" "${addr:--}" "($state)")")
+            [[ $i == "$preferred" ]] && def=$n
+            n=$((n + 1))
+        done
+        echo "$T_SETUP_NET_Q_WHICH_IFACE"
+        n="$(choose "$T_CHOICE" "$def" "${lines[@]}")"
+        NET_IFACE="${list[$((n - 1))]}"
+    fi
+    mkdir -p "$STATE_DIR"
+    if [[ $(cat "$NET_IFACE_FILE" 2>/dev/null) != "$NET_IFACE" ]]; then
+        echo "$NET_IFACE" > "$NET_IFACE_FILE"
+        /usr/local/sbin/system-banner >/dev/null 2>&1 || true
+    fi
+}
+
 step_network() {
     info "$T_SETUP_NET_TITLE"
-    local iface backend cur mode addr gw dns1 dns2
-    iface="$(detect_iface)"
+    local iface backend cur mode addr gw dns1 dns2 asked_iface=0
+    choose_net_iface
+    iface="$NET_IFACE"
+    (( $(wired_ifaces | wc -l) > 0 )) && asked_iface=1
     backend="$(detect_backend)"
     cur="$(ip -4 -o addr show dev "$iface" 2>/dev/null | awk '{print $4; exit}')"
     # DHCP-Adressen haben eine Ablaufzeit und sind als "dynamic" markiert
@@ -609,7 +674,8 @@ step_network() {
             if (( cur_dhcp )); then echo "$T_SETUP_NET_DHCP_ACTIVE"; return 0; fi ;;
         *)  echo "$T_SETUP_NET_UNCHANGED"; return 0 ;;
     esac
-    iface="$(ask "$T_SETUP_NET_Q_IFACE" "$iface")"
+    # Nur fragen, wenn keine Kabelkarte erkannt wurde (sonst schon oben gewählt)
+    (( asked_iface )) || iface="$(ask "$T_SETUP_NET_Q_IFACE" "$iface")"
 
     if [[ $mode == static ]]; then
         while true; do

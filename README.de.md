@@ -272,7 +272,7 @@ Jeder Schritt lässt sich überspringen:
 | 2. Passwort | ändert das Passwort eines Linux-Benutzers |
 | 3. Neustart | **Uhrzeit** für Neustarts (Standard 04:00, gilt auch für Neustarts nach Updates) und **regelmäßiger Neustart** (empfohlen): täglich oder wöchentlich mit Wochentag (Standard Sonntag). Zur Kontrolle steht die aktuelle Uhrzeit und Zeitzone des Geräts dabei. |
 | 4. Cockpit | installiert auf Wunsch die [Web-Verwaltung](#web-verwaltung-cockpit) |
-| 5. Netzwerk | **DHCP behalten** oder **feste IP** mit Gateway und DNS vergeben. Erkennt `ifupdown` (Debian-Standard), `systemd-networkd` und NetworkManager. Wird nach einem Neustart aktiv. |
+| 5. Netzwerk | Bei mehreren Kabel-Netzwerkkarten zuerst die Frage, welche mit dem Heimnetz verbunden ist (nur lokal gespeichert, nicht im Backup). Dann **DHCP behalten** oder **feste IP** mit Gateway und DNS vergeben. Erkennt `ifupdown` (Debian-Standard), `systemd-networkd` und NetworkManager. Wird nach einem Neustart aktiv. |
 
 Die gewählten Einstellungen merkt sich `system-setup` in `/etc/system-setup.conf`
 (Hostname, Neustart-Plan, Cockpit ja/nein, DHCP oder feste IP). Die Datei wird von
