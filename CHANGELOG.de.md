@@ -5,6 +5,13 @@ einem Update an. Änderungen, die nur bei einer **Neuinstallation** wirken (z.B.
 Installer, Partitionierung), sind entsprechend gekennzeichnet.
 English version: [CHANGELOG.md](CHANGELOG.md)
 
+## v1.2.1
+
+- Fehler behoben: Mit fester IP zeigte der Login-Banner am Monitor nach dem
+  Start `127.0.1.1` statt der IP (die Adresse ist dann schon gesetzt, bevor
+  das Kabel verbunden ist, und der Banner wurde nicht neu gezeichnet). Der
+  Banner nennt jetzt die Netzwerkkarte ausdrücklich.
+
 ## v1.2.0
 
 - **Neue Befehlsnamen:** `adguard-setup` heißt jetzt **`system-setup`**,

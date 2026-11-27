@@ -46,19 +46,45 @@ if [[ -f $AGH_CONF ]]; then
     [[ $agh_port =~ ^[0-9]+$ && $agh_port != 80 ]] && agh_port=":$agh_port" || agh_port=""
 fi
 
+# IP-Platzhalter für agetty mit fester Netzwerkkarte, z.B. \4{enp1s0}.
+# Ohne Angabe nimmt agetty die erste Karte, die schon VERBUNDEN ist, sonst die
+# Adresse des Hostnamens (127.0.1.1). Bei fester IP ist die Adresse aber schon
+# gesetzt, bevor das Kabel verbunden ist – dann blieb 127.0.1.1 stehen, weil
+# agetty nur bei Adressänderungen neu zeichnet. Mit fester Karte zeigt es deren
+# Adresse sofort (bei DHCP weiterhin, sobald sie kommt).
+# Karte: die mit der Standardroute, sonst die erste kabelgebundene, sonst \4.
+net_iface() {
+    local i
+    i="$(ip -o route show default 2>/dev/null | awk '{print $5; exit}')"
+    if [[ -z $i ]]; then
+        for i in /sys/class/net/*; do
+            [[ -e $i/device && ! -d $i/wireless && ! -d $i/phy80211 ]] || continue
+            [[ $(cat "$i/type" 2>/dev/null) == 1 ]] || continue
+            i="${i##*/}"
+            break
+        done
+        [[ $i == /* || $i == *'*'* ]] && i=""
+    fi
+    [[ $i =~ ^[A-Za-z0-9._-]+$ ]] && echo "$i"
+    return 0
+}
+iface="$(net_iface)"
+IP='\4'
+[[ -n $iface ]] && IP="\\4{$iface}"
+
 {
     echo
     echo "$LINE"
     printf '\\e{bold}\\e{white}    %s\\e{reset}  -  \\S{PRETTY_NAME}\n' "$T_BANNER_TITLE"
     echo "$LINE"
     issue_row "$T_BANNER_HOSTNAME" '\n'
-    issue_row "$T_BANNER_IP" '\4'
-    issue_row "$T_BANNER_ADGUARD" "http://\\4$agh_port"
+    issue_row "$T_BANNER_IP" "$IP"
+    issue_row "$T_BANNER_ADGUARD" "http://$IP$agh_port"
     if [[ ! -f $AGH_CONF ]]; then
-        issue_row "$T_BANNER_FIRST_SETUP" 'http://\4:3000' "  \\e{yellow}($T_BANNER_NOT_SET_UP)\\e{reset}"
+        issue_row "$T_BANNER_FIRST_SETUP" "http://$IP:3000" "  \\e{yellow}($T_BANNER_NOT_SET_UP)\\e{reset}"
     fi
     if (( cockpit )); then
-        issue_row "$T_BANNER_WEBCONSOLE" 'https://\4:9090'
+        issue_row "$T_BANNER_WEBCONSOLE" "https://$IP:9090"
     fi
     # Eingesteckte USB-Sticks (wird beim Einstecken/Abziehen neu erzeugt)
     if [[ -x /usr/local/sbin/system-usb ]]; then

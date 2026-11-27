@@ -5,6 +5,13 @@ an update. Changes that only take effect on a **reinstall** (e.g. installer,
 partitioning) are marked as such.
 Deutsche Fassung: [CHANGELOG.de.md](CHANGELOG.de.md)
 
+## v1.2.1
+
+- Fixed: with a static IP, the login banner on the monitor showed `127.0.1.1`
+  instead of the IP after boot (the address is set before the cable is
+  connected, and the banner was not redrawn). The banner now names the network
+  interface explicitly.
+
 ## v1.2.0
 
 - **New command names:** `adguard-setup` is now **`system-setup`**,
