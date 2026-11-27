@@ -221,8 +221,8 @@ T_SETUP_USER_HINT_RENAME="To rename: log in as the new user and delete the old o
 # Step 2: password
 T_SETUP_PASSWORD_TITLE="Linux user password"
 T_SETUP_PASSWORD_Q_CHANGE="Change the password of a Linux user?"
-T_SETUP_PASSWORD_Q_USER="User"
-T_SETUP_PASSWORD_NO_USER="User '%s' does not exist – skipped."
+T_SETUP_PASSWORD_Q_WHICH="Whose password do you want to change?"
+T_SETUP_PASSWORD_LOGGED_IN="logged in"
 # Step 3: reboot
 T_SETUP_REBOOT_TITLE="Automatic reboot"
 T_SETUP_REBOOT_CURRENT="Current: %s"

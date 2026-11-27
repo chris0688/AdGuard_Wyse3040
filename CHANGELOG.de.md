@@ -5,6 +5,12 @@ einem Update an. Änderungen, die nur bei einer **Neuinstallation** wirken (z.B.
 Installer, Partitionierung), sind entsprechend gekennzeichnet.
 English version: [CHANGELOG.md](CHANGELOG.md)
 
+## v1.2.3
+
+- Setup-Schritt Passwort: Der Benutzer wird aus einer nummerierten Liste
+  gewählt (der angemeldete ist vorausgewählt), statt den Namen einzutippen. Das
+  alte Passwort wird dabei nicht abgefragt (das Setup läuft mit Admin-Rechten).
+
 ## v1.2.2
 
 - Setup-Schritt Administrator: Nach dem Wechsel weg von `adguard` bietet das

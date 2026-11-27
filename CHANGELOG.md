@@ -5,6 +5,12 @@ an update. Changes that only take effect on a **reinstall** (e.g. installer,
 partitioning) are marked as such.
 Deutsche Fassung: [CHANGELOG.de.md](CHANGELOG.de.md)
 
+## v1.2.3
+
+- Setup step password: the user is chosen from a numbered list (the logged-in
+  user is preselected) instead of typing the name. The old password is not
+  asked for (the setup runs with admin rights).
+
 ## v1.2.2
 
 - Setup step administrator: after switching away from `adguard`, the setup now

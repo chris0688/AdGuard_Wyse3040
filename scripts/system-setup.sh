@@ -434,18 +434,30 @@ step_admin_user() {
 
 # ---------------------------------------------------------------- 2. Linux-Passwort
 
+# Als root setzt passwd ein neues Passwort, ohne das alte abzufragen.
 step_linux_password() {
     info "$T_SETUP_PASSWORD_TITLE"
-    local default_user user
-    default_user="${SUDO_USER:-$(getent passwd 1000 | cut -d: -f1)}"
+    local me="${SUDO_USER:-}" users=() lines=() u def=1 n=1 choice
     yesno "$T_SETUP_PASSWORD_Q_CHANGE" n || return 0
 
-    user="$(ask "$T_SETUP_PASSWORD_Q_USER" "${default_user:-root}")"
-    if ! id "$user" &>/dev/null; then
-        warn "$(t "$T_SETUP_PASSWORD_NO_USER" "$user")"
+    # Menschliche Benutzer (UID 1000 bis 65533), der angemeldete vorausgewählt
+    mapfile -t users < <(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 {print $1}')
+    if (( ${#users[@]} == 0 )); then
+        passwd root
         return 0
     fi
-    passwd "$user"
+    for u in "${users[@]}"; do
+        if [[ $u == "$me" ]]; then
+            lines+=("$u   ($T_SETUP_PASSWORD_LOGGED_IN)")
+            def=$n
+        else
+            lines+=("$u")
+        fi
+        n=$((n + 1))
+    done
+    echo "$T_SETUP_PASSWORD_Q_WHICH"
+    choice="$(choose "$T_CHOICE" "$def" "${lines[@]}")"
+    passwd "${users[$((choice - 1))]}"
 }
 
 # ---------------------------------------------------------------- 3. Neustart-Zeitplan

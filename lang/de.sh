@@ -220,8 +220,8 @@ T_SETUP_USER_HINT_RENAME="Zum Umbenennen: als neuer Benutzer anmelden und den al
 # Schritt 2: Passwort
 T_SETUP_PASSWORD_TITLE="Linux-Benutzerpasswort"
 T_SETUP_PASSWORD_Q_CHANGE="Passwort eines Linux-Benutzers ändern?"
-T_SETUP_PASSWORD_Q_USER="Benutzer"
-T_SETUP_PASSWORD_NO_USER="Benutzer „%s“ existiert nicht – übersprungen."
+T_SETUP_PASSWORD_Q_WHICH="Wessen Passwort ändern?"
+T_SETUP_PASSWORD_LOGGED_IN="angemeldet"
 # Schritt 3: Neustart
 T_SETUP_REBOOT_TITLE="Automatischer Neustart"
 T_SETUP_REBOOT_CURRENT="Aktuell: %s"
